@@ -61,7 +61,7 @@ def keep_alive():
 
 threading.Thread(target=keep_alive, daemon=True).start()
 
-# ========== НОВАЯ ФУНКЦИЯ "ПЕЧАТАЕТ..." ==========
+# ========== ФУНКЦИЯ "ПЕЧАТАЕТ..." ==========
 def send_action(chat_id, action="typing"):
     """Отправляет действие бота (печатает, ищет и т.д.)"""
     try:
@@ -217,9 +217,9 @@ def handle_command(chat_id, text, username):
 
 Я *OSINT бот* для поиска информации в открытых источниках.
 
-━━━━━━━━━━━━━━━━━━━━━
+━━━━━━━━━━━━━━━━
 🔍 *ДОСТУПНЫЕ КОМАНДЫ:*
-━━━━━━━━━━━━━━━━━━━━━
+━━━━━━━━━━━━━━━━
 
 📧 `/email` - поиск по email
 👤 `/nickname` - поиск по никнейму
@@ -230,7 +230,7 @@ def handle_command(chat_id, text, username):
 📊 `/stats` - моя статистика
 ❓ `/help` - помощь
 
-━━━━━━━━━━━━━━━━━━━━━
+━━━━━━━━━━━━━━━━
 💡 *Пример:* `/email test@mail.com`
 🤖 *Версия:* 2.0 | Бесплатно"""
         
@@ -239,9 +239,9 @@ def handle_command(chat_id, text, username):
     elif text == "/help":
         help_text = """❓ *ПОМОЩЬ ПО БОТУ*
 
-━━━━━━━━━━━━━━━━━━━━━
+━━━━━━━━━━━━━━━━
 📚 *ОСНОВНЫЕ КОМАНДЫ:*
-━━━━━━━━━━━━━━━━━━━━━
+━━━━━━━━━━━━━━━━
 
 🔍 `/email example@mail.com`
 👤 `/nickname username`
@@ -251,13 +251,13 @@ def handle_command(chat_id, text, username):
 🖼️ `/photo` - сервисы поиска фото
 📊 `/stats` - моя статистика
 
-━━━━━━━━━━━━━━━━━━━━━
+━━━━━━━━━━━━━━━━
 ⚠️ *ОГРАНИЧЕНИЯ:*
-━━━━━━━━━━━━━━━━━━━━━
+━━━━━━━━━━━━━━━━
 • 10 запросов в минуту
 • Максимум 60 секунд на поиск
 
-━━━━━━━━━━━━━━━━━━━━━
+━━━━━━━━━━━━━━━━
 🤖 *OSINT Бот* | @tracergbot"""
         send_message(chat_id, help_text, parse_mode="Markdown")
     
@@ -278,7 +278,7 @@ def handle_command(chat_id, text, username):
         stats = c.fetchall()
         conn.close()
         
-        stats_text = f"📊 *Ваша статистика*\n\n━━━━━━━━━━━━━━━━━━━━━\n📈 *Всего поисков:* {total}\n━━━━━━━━━━━━━━━━━━━━━\n\n"
+        stats_text = f"📊 *Ваша статистика*\n\n━━━━━━━━━━━━━━━━\n📈 *Всего поисков:* {total}\n━━━━━━━━━━━━━━━━\n\n"
         for stype, count in stats:
             emoji = {"email": "📧", "nickname": "👤", "ip": "🌐", "phone": "📱", "car": "🚗"}.get(stype, "🔍")
             stats_text += f"{emoji} *{stype}:* {count}\n"
