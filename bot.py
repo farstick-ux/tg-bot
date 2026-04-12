@@ -1,4 +1,4 @@
-pip install flask
+pip install --user flask
 import requests
 import subprocess
 import time
