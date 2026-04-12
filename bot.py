@@ -8,7 +8,11 @@ import sqlite3
 from datetime import datetime
 from collections import defaultdict
 
-TOKEN = "7632894734:AAGAyaDvdpPgzDgq244Gzj5U4ASms_VQGV0"
+TOKEN = os.getenv("BOT_TOKEN")
+
+if not TOKEN:
+    print("❌ Ошибка: BOT_TOKEN не найден в переменных окружения!")
+    exit(1)
 URL = f"https://api.telegram.org/bot{TOKEN}/"
 
 # ========== БАЗА ДАННЫХ ==========
