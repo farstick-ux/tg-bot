@@ -54,7 +54,7 @@ def keep_alive():
     while True:
         time.sleep(300)
         try:
-            requests.get("https://tg-bot-f2ww.onrender.com", timeout=5)
+            requests.get("https://tracergbot.onrender.com", timeout=5)
             print("Пинг отправлен")
         except:
             pass
