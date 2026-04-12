@@ -23,13 +23,16 @@ def run_photo_search(chat_id):
     result += "Для поиска этого фото перейдите по ссылкам:\n\n"
     
     # Ссылки на сервисы поиска по фото
-    result += "1. Google Images:\n"
+    result += "1. reversely.ai:\n" 
+    result += "   https://www.reversely.ai/ru/face-search\n\n"
+
+    result += "2. Google Images:\n"
     result += "   https://images.google.com\n\n"
     
-    result += "2. Yandex Images:\n"
+    result += "3. Yandex Images:\n"
     result += "   https://yandex.com/images/\n\n"
     
-    result += "3. TinEye:\n"
+    result += "4. TinEye:\n"
     result += "   https://tineye.com\n\n"
     
     result += "4. Bing Visual Search:\n"
@@ -72,50 +75,116 @@ def run_email_search(email):
         return f"❌ Ошибка: {e}"
 
 def run_nickname_search(username):
-    """Быстрый поиск по никнейму"""
+    """Поиск по никнейму - генерация вариантов и проверка в соцсетях"""
+    
+    import requests
+    from urllib.parse import quote
+    
+    # ========== ГЕНЕРАЦИЯ ВАРИАНТОВ ==========
+    variants = set()
+    
+    variants.add(username)
+    variants.add(username.lower())
+    variants.add(username.upper())
+    variants.add(username.capitalize())
+    
+    prefixes = ['', '_', '__', 'xX_', '_xX', 'Mr_', 'Mrs_', 'The_', 'Real_', 'Pro_']
+    suffixes = ['', '_', '__', '_xX', 'xX', '1', '123', '2024']
+    
+    for pref in prefixes:
+        for suff in suffixes:
+            variants.add(pref + username + suff)
+            variants.add(pref + username.lower() + suff)
+    
+    variants = sorted(list(variants))[:100]
+    
+    # ========== ПРОВЕРКА В СОЦСЕТЯХ ==========
+    # Форматы URL для разных соцсетей
     sites = {
-        "GitHub": f"https://github.com/{username}",
-        "Twitter": f"https://twitter.com/{username}",
-        "Instagram": f"https://instagram.com/{username}",
-        "Telegram": f"https://t.me/{username}",
-        "Reddit": f"https://reddit.com/user/{username}",
-        "YouTube": f"https://youtube.com/@{username}",
-        "Twitch": f"https://twitch.tv/{username}",
-        "Pinterest": f"https://pinterest.com/{username}",
-        "GitLab": f"https://gitlab.com/{username}",
+        "TikTok": {
+            "url": "https://www.tiktok.com/@{}",
+            "check": lambda r: r.status_code == 200 or r.status_code == 302
+        },
+        "Instagram": {
+            "url": "https://instagram.com/{}",
+            "check": lambda r: r.status_code == 200
+        },
+        "Twitter": {
+            "url": "https://twitter.com/{}",
+            "check": lambda r: r.status_code == 200
+        },
+        "Telegram": {
+            "url": "https://t.me/{}",
+            "check": lambda r: "tgme_page_title" in r.text
+        },
+        "GitHub": {
+            "url": "https://github.com/{}",
+            "check": lambda r: r.status_code == 200
+        },
+        "Reddit": {
+            "url": "https://reddit.com/user/{}",
+            "check": lambda r: r.status_code == 200
+        },
+        "YouTube": {
+            "url": "https://youtube.com/@{}",
+            "check": lambda r: r.status_code == 200
+        },
+        "Twitch": {
+            "url": "https://twitch.tv/{}",
+            "check": lambda r: r.status_code == 200
+        },
+        "Pinterest": {
+            "url": "https://pinterest.com/{}",
+            "check": lambda r: r.status_code == 200
+        },
+        "VK": {
+            "url": "https://vk.com/{}",
+            "check": lambda r: r.status_code == 200
+        },
+        "Snapchat": {
+            "url": "https://snapchat.com/add/{}",
+            "check": lambda r: r.status_code == 200
+        },
+        "Medium": {
+            "url": "https://medium.com/@{}",
+            "check": lambda r: r.status_code == 200
+        }
     }
     
-    found = []
+    result = f"🔍 ПОИСК ПО НИКНЕЙМУ: {username}\n\n"
+    result += f"📊 ГЕНЕРИРУЕМ {len(variants)} ВАРИАНТОВ...\n\n"
     
-    # TikTok проверка
-    try:
-        tiktok_url = f"https://www.tiktok.com/@{username}"
-        headers = {
-            "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 15_0 like Mac OS X) AppleWebKit/605.1.15"
-        }
-        r = requests.get(tiktok_url, headers=headers, timeout=5, allow_redirects=False)
-        if r.status_code == 200 or r.status_code == 302:
-            found.append(f"✅ TikTok: https://tiktok.com/@{username}")
-    except:
-        pass
+    found_accounts = []
     
-    # Другие сайты
-    for name, url in sites.items():
-        try:
-            r = requests.get(url, timeout=5, allow_redirects=False)
-            if name == "Telegram":
-                r_full = requests.get(url, timeout=5)
-                if "tgme_page_title" in r_full.text:
-                    found.append(f"✅ {name}: {url}")
-            elif r.status_code == 200 or r.status_code == 302:
-                found.append(f"✅ {name}: {url}")
-        except:
-            pass
+    for nick in variants[:30]:
+        for site_name, site_info in sites.items():
+            url = site_info["url"].format(nick)
+            try:
+                if site_name == "Telegram":
+                    # Для Telegram нужен полный запрос
+                    r = requests.get(url, timeout=5)
+                    if site_info["check"](r):
+                        found_accounts.append(f"✅ {site_name}: {url}")
+                        result += f"✅ {site_name}: @{nick}\n"
+                        break
+                else:
+                    # Для остальных проверяем статус
+                    r = requests.get(url, timeout=5, allow_redirects=False)
+                    if site_info["check"](r):
+                        found_accounts.append(f"✅ {site_name}: {url}")
+                        result += f"✅ {site_name}: @{nick}\n"
+                        break
+            except:
+                pass
     
-    if found:
-        return f"🔍 НИКНЕЙМ: {username}\n\n" + "\n".join(found)
+    if found_accounts:
+        result += f"\n📌 НАЙДЕНО АККАУНТОВ: {len(found_accounts)}\n"
     else:
-        return f"🔍 По никнейму {username} ничего не найдено"
+        result += f"\n❌ Аккаунтов не найдено\n"
+    
+    result += f"\n💡 ПРОВЕРЕНО ВАРИАНТОВ: {min(30, len(variants))}"
+    
+    return result
 
 def run_ip_search(ip):
     result = f"IP: {ip}\n\n"
@@ -139,29 +208,38 @@ def run_ip_search(ip):
     return result
 
 def run_phone_search(phone):
-    # Убираем лишние символы
+    """Расширенный поиск по телефону - оператор, страна, мессенджеры"""
+    
+    import re
+    import requests
+    import phonenumbers
+    from phonenumbers import carrier, geocoder, timezone
+    
     phone = re.sub(r'[^0-9+]', '', phone)
+    result = f"📞 ТЕЛЕФОН: {phone}\n\n"
     
-    result = f"НОМЕР: {phone}\n\n"
+    # 1. Информация о номере
+    try:
+        number = phonenumbers.parse(phone)
+        country = geocoder.description_for_number(number, "ru")
+        operator = carrier.name_for_number(number, "ru")
+        tz = timezone.time_zones_for_number(number)
+        
+        result += f"📍 Страна: {country}\n"
+        result += f"📡 Оператор: {operator}\n"
+        result += f"🕘 Часовой пояс: {tz}\n"
+    except:
+        pass
     
+    # 2. Мессенджеры
+    result += f"\n💬 МЕССЕНДЖЕРЫ:\n"
     result += f"WhatsApp: https://wa.me/{phone}\n"
     result += f"Telegram: https://t.me/{phone}\n"
-    result += f"Truecaller: https://www.truecaller.com/search/{phone}\n"
-    result += f"Google: https://www.google.com/search?q={phone}\n"
     
-    # Определение страны по коду
-    if phone.startswith('+380'):
-        result += f"\nСтрана: Украина\n"
-    elif phone.startswith('+7'):
-        result += f"\nСтрана: Россия\n"
-    elif phone.startswith('+1'):
-        result += f"\nСтрана: США/Канада\n"
-    elif phone.startswith('+48'):
-        result += f"\nСтрана: Польша\n"
-    elif phone.startswith('+44'):
-        result += f"\nСтрана: Великобритания\n"
-    elif phone.startswith('+49'):
-        result += f"\nСтрана: Германия\n"
+    # 3. Поиск в соцсетях
+    result += f"\n🔍 ПОИСК:\n"
+    result += f"Google: https://www.google.com/search?q={phone}\n"
+    result += f"Truecaller: https://www.truecaller.com/search/{phone}\n"
     
     return result
 
