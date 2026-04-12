@@ -1,25 +1,23 @@
-pip install --user flask
 import requests
 import subprocess
 import time
 import re
 import threading
-from flask import Flask
 
 TOKEN = "7632894734:AAGAyaDvdpPgzDgq244Gzj5U4ASms_VQGV0"
 URL = f"https://api.telegram.org/bot{TOKEN}/"
 
-# ========== KEEP ALIVE (чтобы бот не отключался) ==========
-web_app = Flask(__name__)
+# ========== KEEP ALIVE (без Flask) ==========
+def keep_alive():
+    while True:
+        time.sleep(300)
+        try:
+            requests.get("https://tg-bot-f2ww.onrender.com")
+            print("Пинг отправлен")
+        except Exception as e:
+            print(f"Ошибка пинга: {e}")
 
-@web_app.route('/')
-def home():
-    return "Бот работает!"
-
-def run_web():
-    web_app.run(host='0.0.0.0', port=10000)
-
-threading.Thread(target=run_web, daemon=True).start()
+threading.Thread(target=keep_alive, daemon=True).start()
 
 # ========== ФУНКЦИИ БОТА ==========
 def send_message(chat_id, text):
@@ -92,9 +90,6 @@ def run_email_search(email):
 def run_nickname_search(username):
     """Поиск по никнейму через Sherlock"""
     
-    import subprocess
-    import re
-    
     try:
         result = subprocess.run(["sherlock", username], capture_output=True, text=True, timeout=60)
         output = result.stdout
@@ -146,7 +141,6 @@ def run_phone_search(phone):
     """Расширенный поиск по телефону - оператор, страна, мессенджеры"""
     
     import re
-    import requests
     import phonenumbers
     from phonenumbers import carrier, geocoder, timezone
     
