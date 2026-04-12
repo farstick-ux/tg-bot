@@ -304,6 +304,22 @@ def handle_command(chat_id, text, username):
     else:
         send_message(chat_id, "❌ Неизвестная команда. Используйте /help")
 
+# ========== ЗАПУСК FLASK ==========
+from flask import Flask
+import threading
+
+flask_app = Flask(__name__)
+
+@flask_app.route('/')
+def health_check():
+    return "Bot is running!", 200
+
+def run_flask():
+    flask_app.run(host='0.0.0.0', port=10000)
+
+threading.Thread(target=run_flask, daemon=True).start()
+print("✅ Flask запущен!")
+
 # ========== ОСНОВНОЙ ЦИКЛ ==========
 print("🤖 Бот запущен...")
 last_id = 0
