@@ -1,12 +1,26 @@
 import requests
 import subprocess
-subprocess.Popen(["python", "keep_alive.py"])
 import time
 import re
+import threading
+from flask import Flask
 
 TOKEN = "7632894734:AAGAyaDvdpPgzDgq244Gzj5U4ASms_VQGV0"
 URL = f"https://api.telegram.org/bot{TOKEN}/"
 
+# ========== KEEP ALIVE (чтобы бот не отключался) ==========
+web_app = Flask(__name__)
+
+@web_app.route('/')
+def home():
+    return "Бот работает!"
+
+def run_web():
+    web_app.run(host='0.0.0.0', port=10000)
+
+threading.Thread(target=run_web, daemon=True).start()
+
+# ========== ФУНКЦИИ БОТА ==========
 def send_message(chat_id, text):
     requests.post(URL + "sendMessage", json={"chat_id": chat_id, "text": text})
 
@@ -23,7 +37,6 @@ def run_photo_search(chat_id):
     result = "🔎 ПОИСК ПО ФОТО\n\n"
     result += "Для поиска этого фото перейдите по ссылкам:\n\n"
     
-    # Ссылки на сервисы поиска по фото
     result += "1. reversely.ai:\n" 
     result += "   https://www.reversely.ai/ru/face-search\n\n"
 
@@ -76,75 +89,36 @@ def run_email_search(email):
         return f"❌ Ошибка: {e}"
 
 def run_nickname_search(username):
-    """Автоматический поиск по никнейму - генерация 30 вариантов и проверка"""
+    """Поиск по никнейму через Sherlock"""
     
-    import requests
+    import subprocess
+    import re
     
-    # ========== ГЕНЕРАЦИЯ ВАРИАНТОВ ==========
-    variants = set()
-    
-    variants.add(username)
-    variants.add(username.lower())
-    variants.add(username.upper())
-    variants.add(username.capitalize())
-    
-    prefixes = ['', '_', '__', 'Mr_', 'Mrs_', 'The_', 'Real_', 'Xx_', 'xX_', 'Pro_', 'King_', 'Queen_']
-    suffixes = ['', '_', '__', '123', 'xX', 'Xx', 'pro', 'official']
-    
-    for pref in prefixes:
-        for suff in suffixes:
-            variants.add(pref + username + suff)
-            variants.add(pref + username.lower() + suff)
-    
-    variants = sorted(list(variants))[:30]
-    
-    # ========== СОЦСЕТИ ==========
-    sites = {
-        "TikTok": "https://www.tiktok.com/@{}",
-        "Instagram": "https://instagram.com/{}",
-        "Twitter": "https://twitter.com/{}",
-        "Telegram": "https://t.me/{}",
-        "GitHub": "https://github.com/{}",
-        "YouTube": "https://youtube.com/@{}",
-        "Twitch": "https://twitch.tv/{}",
-        "Reddit": "https://reddit.com/user/{}",
-        "Pinterest": "https://pinterest.com/{}",
-        "VK": "https://vk.com/{}",
-    }
-    
-    result = f"🔍 ПОИСК ПО НИКНЕЙМУ: {username}\n\n"
-    result += f"📊 ГЕНЕРИРУЕМ {len(variants)} ВАРИАНТОВ\n\n"
-    
-    found_list = []
-    
-    for nick in variants:
-        for site_name, site_url in sites.items():
-            url = site_url.format(nick)
-            try:
-                if site_name == "Telegram":
-                    r = requests.get(url, timeout=5)
-                    if "tgme_page_title" in r.text and "If you have Telegram" not in r.text:
-                        found_list.append(f"✅ {site_name}: @{nick}")
-                        break
-                elif site_name == "TikTok":
-                    r = requests.get(url, timeout=5, allow_redirects=False)
-                    if r.status_code == 200:
-                        found_list.append(f"✅ {site_name}: @{nick}")
-                        break
-                else:
-                    r = requests.get(url, timeout=5, allow_redirects=False)
-                    if r.status_code == 200:
-                        found_list.append(f"✅ {site_name}: @{nick}")
-                        break
-            except:
-                pass
-    
-    if found_list:
-        result += "📌 НАЙДЕНО:\n" + "\n".join(found_list[:50])
-    else:
-        result += "❌ Аккаунтов не найдено"
-    
-    return result
+    try:
+        result = subprocess.run(["sherlock", username], capture_output=True, text=True, timeout=60)
+        output = result.stdout
+        
+        if not output:
+            return f"🔍 По никнейму {username} ничего не найдено"
+        
+        clean = re.sub(r'\x1b\[[0-9;]*m', '', output)
+        
+        found = []
+        for line in clean.split("\n"):
+            if "[+]" in line:
+                site = line.replace("[+]", "").strip()
+                if site and "Checking" not in site and "Using" not in site:
+                    found.append(f"✅ {site}")
+        
+        if found:
+            return f"🔍 НИКНЕЙМ: {username}\n\n" + "\n".join(found[:30])
+        else:
+            return f"🔍 По никнейму {username} ничего не найдено"
+            
+    except FileNotFoundError:
+        return "❌ Sherlock не установлен. Установите: pip install sherlock-project"
+    except Exception as e:
+        return f"❌ Ошибка: {e}"
 
 def run_ip_search(ip):
     result = f"IP: {ip}\n\n"
@@ -178,7 +152,6 @@ def run_phone_search(phone):
     phone = re.sub(r'[^0-9+]', '', phone)
     result = f"📞 ТЕЛЕФОН: {phone}\n\n"
     
-    # 1. Информация о номере
     try:
         number = phonenumbers.parse(phone)
         country = geocoder.description_for_number(number, "ru")
@@ -191,18 +164,17 @@ def run_phone_search(phone):
     except:
         pass
     
-    # 2. Мессенджеры
     result += f"\n💬 МЕССЕНДЖЕРЫ:\n"
     result += f"WhatsApp: https://wa.me/{phone}\n"
     result += f"Telegram: https://t.me/{phone}\n"
     
-    # 3. Поиск в соцсетях
     result += f"\n🔍 ПОИСК:\n"
     result += f"Google: https://www.google.com/search?q={phone}\n"
     result += f"Truecaller: https://www.truecaller.com/search/{phone}\n"
     
     return result
 
+# ========== ОСНОВНОЙ ЦИКЛ БОТА ==========
 last_id = 0
 print("Бот запущен...")
 
