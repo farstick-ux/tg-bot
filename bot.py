@@ -19,7 +19,6 @@ def keep_alive():
 
 threading.Thread(target=keep_alive, daemon=True).start()
 
-# ========== ФУНКЦИИ БОТА ==========
 def send_message(chat_id, text):
     requests.post(URL + "sendMessage", json={"chat_id": chat_id, "text": text})
 
@@ -31,23 +30,12 @@ def get_updates(offset=None):
     return response.json()
 
 def run_photo_search():
-    result = "🔎 ПОИСК ПО ФОТО\n\n"
-    result += "Для поиска этого фото перейдите по ссылкам:\n\n"
-    result += "1. reversely.ai:\n" 
-    result += "   https://www.reversely.ai/ru/face-search\n\n"
-    result += "2. Google Images:\n"
-    result += "   https://images.google.com\n\n"
-    result += "3. Yandex Images:\n"
-    result += "   https://yandex.com/images/\n\n"
-    result += "4. TinEye:\n"
-    result += "   https://tineye.com\n\n"
-    result += "5. Bing Visual Search:\n"
-    result += "   https://www.bing.com/visualsearch\n\n"
-    result += "КАК ИСПОЛЬЗОВАТЬ:\n"
-    result += "1. Сохраните фото\n"
-    result += "2. Откройте любой из сервисов выше\n"
-    result += "3. Загрузите фото\n"
-    result += "4. Посмотрите где оно найдено"
+    result = "🔎 ПОИСК ПО ФОТО\n\nДля поиска этого фото перейдите по ссылкам:\n\n"
+    result += "1. reversely.ai: https://www.reversely.ai/ru/face-search\n\n"
+    result += "2. Google Images: https://images.google.com\n\n"
+    result += "3. Yandex Images: https://yandex.com/images/\n\n"
+    result += "4. TinEye: https://tineye.com\n\n"
+    result += "5. Bing Visual Search: https://www.bing.com/visualsearch\n\n"
     return result
 
 def run_email_search(email):
@@ -67,14 +55,10 @@ def run_email_search(email):
             return f"🔍 Email: {email}\n\n✅ НАЙДЕНО:\n" + "\n".join(found[:25])
         else:
             return f"🔍 По email {email} ничего не найдено"
-    except FileNotFoundError:
-        return "❌ Holehe не установлен. Установите: pip install holehe"
     except Exception as e:
         return f"❌ Ошибка: {e}"
 
-def run_nickname_search_auto(username):
-    """Автоматическая проверка 10 сайтов"""
-    
+def run_nickname_search(username):
     sites = {
         "TikTok": f"https://www.tiktok.com/@{username}",
         "Instagram": f"https://instagram.com/{username}",
@@ -87,9 +71,7 @@ def run_nickname_search_auto(username):
         "Pinterest": f"https://pinterest.com/{username}",
         "VK": f"https://vk.com/{username}"
     }
-    
     found = []
-    
     for site_name, url in sites.items():
         try:
             if site_name == "Telegram":
@@ -108,7 +90,6 @@ def run_nickname_search_auto(username):
                     found.append(f"✅ {site_name}: {url}")
         except:
             pass
-    
     if found:
         return f"🔍 НИКНЕЙМ: {username}\n\n" + "\n".join(found)
     else:
@@ -120,62 +101,51 @@ def run_ip_search(ip):
         response = requests.get(f"http://ip-api.com/json/{ip}", timeout=10)
         data = response.json()
         if data.get('status') == 'success':
-            result += f"🌎Страна: {data.get('country', 'Неизвестно')}\n"
-            result += f"🏙Город: {data.get('city', 'Неизвестно')}\n"
-            result += f"📡Провайдер: {data.get('isp', 'Неизвестно')}\n"
-            result += f"📍Координаты: {data.get('lat')}, {data.get('lon')}\n"
-            result += f"🕘Часовой пояс: {data.get('timezone', 'Неизвестно')}\n"
+            result += f"Страна: {data.get('country', 'Неизвестно')}\n"
+            result += f"Город: {data.get('city', 'Неизвестно')}\n"
+            result += f"Провайдер: {data.get('isp', 'Неизвестно')}\n"
+            result += f"Координаты: {data.get('lat')}, {data.get('lon')}\n"
         else:
-            result += "🚫 Ошибка: не удалось получить информацию\n"
+            result += "Ошибка: не удалось получить информацию"
     except Exception as e:
-        result += f"❌ Ошибка: {e}\n"
+        result += f"Ошибка: {e}"
     return result
 
 def run_phone_search(phone):
-    import re
     import phonenumbers
-    from phonenumbers import carrier, geocoder, timezone
-    
+    from phonenumbers import carrier, geocoder
     phone = re.sub(r'[^0-9+]', '', phone)
-    result = f"📞 ТЕЛЕФОН: {phone}\n\n"
+    result = f"ТЕЛЕФОН: {phone}\n\n"
     try:
         number = phonenumbers.parse(phone)
         country = geocoder.description_for_number(number, "ru")
         operator = carrier.name_for_number(number, "ru")
-        tz = timezone.time_zones_for_number(number)
-        result += f"📍 Страна: {country}\n"
-        result += f"📡 Оператор: {operator}\n"
-        result += f"🕘 Часовой пояс: {tz}\n"
+        result += f"Страна: {country}\n"
+        result += f"Оператор: {operator}\n"
     except:
         pass
-    result += f"\n💬 МЕССЕНДЖЕРЫ:\n"
-    result += f"WhatsApp: https://wa.me/{phone}\n"
+    result += f"\nWhatsApp: https://wa.me/{phone}\n"
     result += f"Telegram: https://t.me/{phone}\n"
-    result += f"\n🔍 ПОИСК:\n"
-    result += f"Google: https://www.google.com/search?q={phone}\n"
-    result += f"Truecaller: https://www.truecaller.com/search/{phone}\n"
+    result += f"\nGoogle: https://www.google.com/search?q={phone}\n"
     return result
 
-# ========== ОСНОВНОЙ ЦИКЛ ==========
 last_id = 0
 print("Бот запущен...")
 
 while True:
     updates = get_updates(last_id + 1)
-    
     for update in updates.get("result", []):
         last_id = update["update_id"]
         if "message" not in update:
             continue
-        
         chat_id = update["message"]["chat"]["id"]
         text = update["message"].get("text", "")
         
         if text == "/start":
-            send_message(chat_id, "🤖OSINT БОТ\n\nКоманды:\n/nickname <ник> - поиск по никнейму\n/email <email> - поиск по email\n/phone <номер> - поиск по телефону\n/ip <айпи> - поиск по айпи\n/photo - поиск по фото\n/help - помощь")
+            send_message(chat_id, "OSINT БОТ\n\nКоманды:\n/nickname <ник>\n/email <email>\n/phone <номер>\n/ip <айпи>\n/photo - поиск по фото\n/help - помощь")
         
         elif text == "/help":
-            send_message(chat_id, "📋ПРИМЕРЫ:\n/nickname qwerty\n/email test@mail.com\n/phone +380991234567\n/ip 8.8.8.8")
+            send_message(chat_id, "ПРИМЕРЫ:\n/nickname qwerty\n/email test@mail.com\n/phone +380991234567\n/ip 8.8.8.8")
         
         elif text == "/photo":
             result = run_photo_search()
@@ -184,37 +154,37 @@ while True:
         elif text.startswith("/nickname"):
             username = text.replace("/nickname", "").strip()
             if username:
-                send_message(chat_id, f"🔎 Поиск никнейма: {username}\n⏳ Подождите...")
+                send_message(chat_id, f"Поиск никнейма: {username}\nПодождите...")
                 result = run_nickname_search(username)
-                send_message(chat_id, f"📋 РЕЗУЛЬТАТ:\n{result}")
+                send_message(chat_id, f"РЕЗУЛЬТАТ:\n{result}")
             else:
-                send_message(chat_id, "❌ Использование: /nickname никнейм")
+                send_message(chat_id, "Использование: /nickname никнейм")
         
         elif text.startswith("/ip"):
             ip = text.replace("/ip", "").strip()
             if ip:
-                send_message(chat_id, f"🔎 Поиск IP: {ip}\n⏳ Подождите...")
+                send_message(chat_id, f"Поиск IP: {ip}\nПодождите...")
                 result = run_ip_search(ip)
-                send_message(chat_id, f"📋 РЕЗУЛЬТАТ:\n{result}")
+                send_message(chat_id, f"РЕЗУЛЬТАТ:\n{result}")
             else:
-                send_message(chat_id, "❌ Использование: /ip 8.8.8.8")
+                send_message(chat_id, "Использование: /ip 8.8.8.8")
         
         elif text.startswith("/email"):
             email = text.replace("/email", "").strip()
             if email and "@" in email:
-                send_message(chat_id, f"🔍 Поиск email: {email}\n⏳ Подождите...")
+                send_message(chat_id, f"Поиск email: {email}\nПодождите...")
                 result = run_email_search(email)
-                send_message(chat_id, f"📋 РЕЗУЛЬТАТ:\n{result}")
+                send_message(chat_id, f"РЕЗУЛЬТАТ:\n{result}")
             else:
-                send_message(chat_id, "❌ Использование: /email email@example.com")
+                send_message(chat_id, "Использование: /email email@example.com")
         
         elif text.startswith("/phone"):
             phone = text.replace("/phone", "").strip()
             if phone:
-                send_message(chat_id, f"🔍 Поиск номера: {phone}\n⏳ Подождите...")
+                send_message(chat_id, f"Поиск номера: {phone}\nПодождите...")
                 result = run_phone_search(phone)
-                send_message(chat_id, f"📋 РЕЗУЛЬТАТ:\n{result}")
+                send_message(chat_id, f"РЕЗУЛЬТАТ:\n{result}")
             else:
-                send_message(chat_id, "❌ Использование: /phone +380991234567")
+                send_message(chat_id, "Использование: /phone +380991234567")
     
     time.sleep(1)
