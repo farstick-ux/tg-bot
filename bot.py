@@ -179,11 +179,10 @@ def run_photo_search():
 
 🔗 СЕРВИСЫ ДЛЯ ПОИСКА:
 
-1. Google Images: https://images.google.com
+1. Google Search: https://google.com
 2. Yandex Images: https://yandex.com/images/
-3. TinEye: https://tineye.com
+3. PimEyes: https://pimeyes.com
 4. Bing Visual Search: https://www.bing.com/visualsearch
-5. Reversely.ai: https://www.reversely.ai/ru/face-search
 
 📌 Инструкция:
 1. Откройте любой сервис
@@ -200,7 +199,7 @@ def handle_command(chat_id, text, username):
         return
     
     if text == "/start":
-        welcome = f"""🤖 Привет, {username}!
+        welcome = f"""🤖 Привет!
 
 Я OSINT бот для поиска информации.
 
@@ -212,9 +211,9 @@ def handle_command(chat_id, text, username):
 /car <номер> - поиск по номеру авто
 /photo - поиск по фото
 /help - помощь
-/stats - моя статистика
-
-Пример: /email test@mail.com"""
+/stats - моя статистика"""
+        
+        
         send_message(chat_id, welcome)
     
     elif text == "/help":
