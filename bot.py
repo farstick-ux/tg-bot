@@ -72,7 +72,7 @@ def run_email_search(email):
     except Exception as e:
         return f"❌ Ошибка: {e}"
 
-def run_nickname_search(username):
+def run_nickname_search_auto(username):
     """Автоматическая проверка 10 сайтов"""
     
     sites = {
