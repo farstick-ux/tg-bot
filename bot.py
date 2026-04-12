@@ -1,27 +1,15 @@
-import os
-import re
+import requests
 import subprocess
 import time
-import asyncio
-import logging
+import re
+import threading
+import os
 import sqlite3
 from datetime import datetime
 from collections import defaultdict
-from typing import Dict, List, Optional, Tuple
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import (
-    Application, CommandHandler, CallbackQueryHandler, MessageHandler,
-    filters, ContextTypes
-)
-import aiohttp
 
-# ========== НАСТРОЙКИ ==========
-TOKEN = os.getenv("BOT_TOKEN", "7632894734:AAGAyaDvdpPgzDgq244Gzj5U4ASms_VQGV0")
-ADMIN_IDS = []  # Добавьте сюда свой ID после получения от @userinfobot
-
-# Логирование
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
-logger = logging.getLogger(__name__)
+TOKEN = "7632894734:AAGAyaDvdpPgzDgq244Gzj5U4ASms_VQGV0"
+URL = f"https://api.telegram.org/bot{TOKEN}/"
 
 # ========== БАЗА ДАННЫХ ==========
 def init_db():
@@ -36,10 +24,18 @@ def init_db():
 
 init_db()
 
+def save_search(user_id, search_type, query, result):
+    conn = sqlite3.connect('bot_database.db')
+    c = conn.cursor()
+    c.execute("INSERT INTO searches VALUES (?, ?, ?, ?, ?)",
+              (user_id, search_type, query, result[:500], datetime.now().isoformat()))
+    conn.commit()
+    conn.close()
+
 # ========== RATE LIMITING ==========
 user_commands = defaultdict(list)
 
-def rate_limit(user_id: int, limit: int = 10, per_seconds: int = 60) -> Tuple[bool, int]:
+def rate_limit(user_id, limit=10, per_seconds=60):
     now = time.time()
     user_commands[user_id] = [t for t in user_commands[user_id] if now - t < per_seconds]
     if len(user_commands[user_id]) >= limit:
@@ -49,31 +45,42 @@ def rate_limit(user_id: int, limit: int = 10, per_seconds: int = 60) -> Tuple[bo
     user_commands[user_id].append(now)
     return True, 0
 
-# ========== КЛАВИАТУРЫ ==========
-def get_main_keyboard():
-    keyboard = [
-        [InlineKeyboardButton("🔍 Поиск по email", callback_data="search_email")],
-        [InlineKeyboardButton("👤 Поиск по никнейму", callback_data="search_nickname")],
-        [InlineKeyboardButton("🌐 Поиск по IP", callback_data="search_ip")],
-        [InlineKeyboardButton("📱 Поиск по телефону", callback_data="search_phone")],
-        [InlineKeyboardButton("🚗 Поиск по номеру авто", callback_data="search_car")],
-        [InlineKeyboardButton("🖼️ Поиск по фото", callback_data="search_photo")],
-        [InlineKeyboardButton("❓ Помощь", callback_data="help")],
-    ]
-    return InlineKeyboardMarkup(keyboard)
+# ========== KEEP ALIVE ==========
+def keep_alive():
+    while True:
+        time.sleep(300)
+        try:
+            requests.get("https://tg-bot-f2ww.onrender.com", timeout=5)
+            print("Пинг отправлен")
+        except:
+            pass
 
-def get_back_keyboard():
-    keyboard = [[InlineKeyboardButton("🔙 Назад в меню", callback_data="menu")]]
-    return InlineKeyboardMarkup(keyboard)
+threading.Thread(target=keep_alive, daemon=True).start()
+
+def send_message(chat_id, text):
+    try:
+        if len(text) > 4000:
+            for i in range(0, len(text), 4000):
+                requests.post(URL + "sendMessage", json={"chat_id": chat_id, "text": text[i:i+4000]}, timeout=10)
+        else:
+            requests.post(URL + "sendMessage", json={"chat_id": chat_id, "text": text}, timeout=10)
+    except Exception as e:
+        print(f"Ошибка отправки: {e}")
+
+def get_updates(offset=None):
+    params = {"timeout": 30}
+    if offset:
+        params["offset"] = offset
+    try:
+        response = requests.get(URL + "getUpdates", params=params, timeout=35)
+        return response.json()
+    except:
+        return {"result": []}
 
 # ========== ФУНКЦИИ ПОИСКА ==========
-async def run_email_search(email: str) -> str:
+def run_email_search(email):
     try:
-        result = await asyncio.to_thread(
-            subprocess.run,
-            ["holehe", email, "--no-color"],
-            capture_output=True, text=True, timeout=60
-        )
+        result = subprocess.run(["holehe", email, "--no-color"], capture_output=True, text=True, timeout=60)
         clean = re.sub(r'\x1b\[[0-9;]*m', '', result.stdout)
         found_sites = []
         for line in clean.split("\n"):
@@ -89,7 +96,7 @@ async def run_email_search(email: str) -> str:
     except Exception as e:
         return f"❌ Ошибка: {e}"
 
-async def run_nickname_search(username: str) -> str:
+def run_nickname_search(username):
     sites = {
         "TikTok": f"https://www.tiktok.com/@{username}",
         "Instagram": f"https://instagram.com/{username}",
@@ -101,43 +108,40 @@ async def run_nickname_search(username: str) -> str:
         "Reddit": f"https://reddit.com/user/{username}",
     }
     found = []
-    async with aiohttp.ClientSession() as session:
-        for site_name, url in sites.items():
-            try:
-                async with session.get(url, timeout=5, allow_redirects=False) as resp:
-                    if resp.status == 200:
-                        if site_name == "Telegram":
-                            text = await resp.text()
-                            if "tgme_page_title" in text and "If you have Telegram" not in text:
-                                found.append(f"✅ {site_name}: {url}")
-                        else:
-                            found.append(f"✅ {site_name}: {url}")
-            except:
-                pass
+    for site_name, url in sites.items():
+        try:
+            r = requests.get(url, timeout=5, allow_redirects=False)
+            if r.status_code == 200:
+                if site_name == "Telegram":
+                    if "tgme_page_title" in r.text and "If you have Telegram" not in r.text:
+                        found.append(f"✅ {site_name}: {url}")
+                else:
+                    found.append(f"✅ {site_name}: {url}")
+        except:
+            pass
     if found:
         return f"🔍 НИКНЕЙМ: {username}\n\n" + "\n".join(found)
     return f"🔍 По никнейму {username} ничего не найдено"
 
-async def run_ip_search(ip: str) -> str:
+def run_ip_search(ip):
     ip_pattern = re.compile(r'^(\d{1,3}\.){3}\d{1,3}$')
     if not ip_pattern.match(ip):
         return "❌ Неверный формат IP-адреса"
     try:
-        async with aiohttp.ClientSession() as session:
-            async with session.get(f"http://ip-api.com/json/{ip}", timeout=10) as resp:
-                data = await resp.json()
-                if data.get('status') == 'success':
-                    return f"""🌐 IP: {ip}
+        response = requests.get(f"http://ip-api.com/json/{ip}", timeout=10)
+        data = response.json()
+        if data.get('status') == 'success':
+            return f"""🌐 IP: {ip}
 
 📍 Страна: {data.get('country', 'Неизвестно')}
 🏙️ Город: {data.get('city', 'Неизвестно')}
 🏢 Провайдер: {data.get('isp', 'Неизвестно')}
 🗺️ Координаты: {data.get('lat')}, {data.get('lon')}"""
-                return f"❌ Не удалось найти IP {ip}"
+        return f"❌ Не удалось найти IP {ip}"
     except Exception as e:
         return f"❌ Ошибка: {e}"
 
-async def run_phone_search(phone: str) -> str:
+def run_phone_search(phone):
     phone_clean = re.sub(r'[^0-9+]', '', phone)
     result = f"📱 ТЕЛЕФОН: {phone_clean}\n\n"
     result += f"• WhatsApp: https://wa.me/{phone_clean}\n"
@@ -145,137 +149,189 @@ async def run_phone_search(phone: str) -> str:
     result += f"• Google: https://www.google.com/search?q={phone_clean}\n"
     return result
 
-async def run_car_search(plate_number: str) -> str:
+def run_car_search(plate_number):
     plate_clean = re.sub(r'[^A-Za-z0-9]', '', plate_number).upper()
     result = f"🚗 НОМЕР АВТО: {plate_clean}\n\n"
     
     if re.match(r'^[A-Z]{1}\d{3}[A-Z]{2}\d{2,3}$', plate_clean):
         result += "🇷🇺 РОССИЯ:\n"
         result += f"• ГИБДД: https://xn--90adear.xn--p1ai/check/auto/{plate_clean}\n"
+        result += f"• Автокод: https://avtokod.mos.ru/CheckCar/Index?number={plate_clean}\n"
     elif re.match(r'^[A-Z]{2}\d{4}[A-Z]{2}$', plate_clean):
         result += "🇺🇦 УКРАИНА:\n"
         result += f"• Опендатабот: https://opendatabot.ua/c/auto/{plate_clean}\n"
+    elif re.match(r'^[A-Z]{1}\d{3}[A-Z]{3}$', plate_clean):
+        result += "🇰🇿 КАЗАХСТАН:\n"
+        result += f"• E-Gov: https://egov.kz/cms/ru/services/transport/check_vehicle_auto/{plate_clean}\n"
     else:
         result += "🌍 МЕЖДУНАРОДНЫЙ ПОИСК:\n"
     
     result += f"\n🔍 Google: https://www.google.com/search?q={plate_clean}+номер+авто\n"
+    result += f"🔍 Avito: https://www.avito.ru/all?q={plate_clean}\n"
     return result
 
-async def run_photo_search() -> str:
+def run_photo_search():
     return """🔎 ПОИСК ПО ФОТО
 
-🔗 СЕРВИСЫ:
+🔗 СЕРВИСЫ ДЛЯ ПОИСКА:
+
 1. Google Images: https://images.google.com
 2. Yandex Images: https://yandex.com/images/
 3. TinEye: https://tineye.com
-4. Reversely.ai: https://www.reversely.ai/ru/face-search
+4. Bing Visual Search: https://www.bing.com/visualsearch
+5. Reversely.ai: https://www.reversely.ai/ru/face-search
 
-📌 Инструкция: Откройте сервис → Нажмите на иконку камеры → Загрузите фото"""
+📌 Инструкция:
+1. Откройте любой сервис
+2. Нажмите на иконку камеры
+3. Загрузите фото
+4. Получите результаты"""
 
-# ========== ОБРАБОТЧИКИ ==========
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user = update.effective_user
-    await update.message.reply_text(
-        f"🤖 Привет, {user.first_name}!\n\nЯ OSINT бот для поиска информации.\n\nИспользуй кнопки ниже 👇",
-        reply_markup=get_main_keyboard()
-    )
-
-async def menu_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    await query.answer()
-    await query.edit_message_text("🔍 Главное меню:", reply_markup=get_main_keyboard())
-
-async def search_prompt(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    await query.answer()
-    
-    search_type = query.data.replace("search_", "")
-    context.user_data['search_type'] = search_type
-    
-    prompts = {
-        "email": "📧 Введите email для поиска:",
-        "nickname": "👤 Введите никнейм для поиска:",
-        "ip": "🌐 Введите IP адрес для поиска:",
-        "phone": "📱 Введите номер телефона для поиска:",
-        "car": "🚗 Введите номер автомобиля для поиска:",
-        "photo": "🖼️ Поиск по фото"
-    }
-    
-    await query.edit_message_text(
-        prompts.get(search_type, "Введите данные:"),
-        reply_markup=get_back_keyboard()
-    )
-
-async def handle_search_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.effective_user.id
-    search_type = context.user_data.get('search_type')
-    query_text = update.message.text.strip()
-    
-    allowed, wait_time = rate_limit(user_id)
+# ========== КОМАНДЫ ==========
+def handle_command(chat_id, text, username):
+    # Rate limiting
+    allowed, wait_time = rate_limit(chat_id)
     if not allowed:
-        await update.message.reply_text(f"⏳ Подождите {wait_time} секунд.")
+        send_message(chat_id, f"⏳ Слишком много запросов! Подождите {wait_time} секунд.")
         return
     
-    status_msg = await update.message.reply_text("🔍 Поиск...")
+    if text == "/start":
+        welcome = f"""🤖 Привет, {username}!
+
+Я OSINT бот для поиска информации.
+
+🔍 Команды:
+/email <email> - поиск по email
+/nickname <ник> - поиск по никнейму
+/ip <айпи> - поиск по IP
+/phone <номер> - поиск по телефону
+/car <номер> - поиск по номеру авто
+/photo - поиск по фото
+/help - помощь
+/stats - моя статистика
+
+Пример: /email test@mail.com"""
+        send_message(chat_id, welcome)
     
-    if search_type == "email":
-        result = await run_email_search(query_text)
-    elif search_type == "nickname":
-        result = await run_nickname_search(query_text)
-    elif search_type == "ip":
-        result = await run_ip_search(query_text)
-    elif search_type == "phone":
-        result = await run_phone_search(query_text)
-    elif search_type == "car":
-        result = await run_car_search(query_text)
-    elif search_type == "photo":
-        result = await run_photo_search()
+    elif text == "/help":
+        help_text = """📚 *ПОМОЩЬ*
+
+*Команды:*
+/email example@mail.com - поиск email
+/nickname username - поиск никнейма
+/ip 8.8.8.8 - поиск IP
+/phone +380991234567 - поиск телефона
+/car а123вв777 - поиск авто
+/photo - сервисы поиска фото
+/stats - моя статистика
+
+*Ограничения:* 10 запросов в минуту"""
+        send_message(chat_id, help_text)
+    
+    elif text == "/photo":
+        result = run_photo_search()
+        send_message(chat_id, result)
+    
+    elif text == "/stats":
+        conn = sqlite3.connect('bot_database.db')
+        c = conn.cursor()
+        c.execute("SELECT COUNT(*) FROM searches WHERE user_id = ?", (chat_id,))
+        total = c.fetchone()[0]
+        c.execute("SELECT type, COUNT(*) FROM searches WHERE user_id = ? GROUP BY type", (chat_id,))
+        stats = c.fetchall()
+        conn.close()
+        
+        stats_text = f"📊 *Ваша статистика*\n\nВсего поисков: {total}\n\n"
+        for stype, count in stats:
+            emoji = {"email": "📧", "nickname": "👤", "ip": "🌐", "phone": "📱", "car": "🚗"}.get(stype, "🔍")
+            stats_text += f"{emoji} {stype}: {count}\n"
+        send_message(chat_id, stats_text)
+    
+    elif text.startswith("/email"):
+        email = text.replace("/email", "").strip()
+        if email and "@" in email:
+            send_message(chat_id, f"🔍 Поиск email: {email}\n⏳ Подождите...")
+            result = run_email_search(email)
+            send_message(chat_id, result)
+            save_search(chat_id, "email", email, result)
+        else:
+            send_message(chat_id, "❌ Использование: /email email@example.com")
+    
+    elif text.startswith("/nickname"):
+        nickname = text.replace("/nickname", "").strip()
+        if nickname:
+            send_message(chat_id, f"🔍 Поиск никнейма: {nickname}\n⏳ Подождите...")
+            result = run_nickname_search(nickname)
+            send_message(chat_id, result)
+            save_search(chat_id, "nickname", nickname, result)
+        else:
+            send_message(chat_id, "❌ Использование: /nickname username")
+    
+    elif text.startswith("/ip"):
+        ip = text.replace("/ip", "").strip()
+        if ip:
+            send_message(chat_id, f"🔍 Поиск IP: {ip}\n⏳ Подождите...")
+            result = run_ip_search(ip)
+            send_message(chat_id, result)
+            save_search(chat_id, "ip", ip, result)
+        else:
+            send_message(chat_id, "❌ Использование: /ip 8.8.8.8")
+    
+    elif text.startswith("/phone"):
+        phone = text.replace("/phone", "").strip()
+        if phone:
+            send_message(chat_id, f"🔍 Поиск телефона: {phone}\n⏳ Подождите...")
+            result = run_phone_search(phone)
+            send_message(chat_id, result)
+            save_search(chat_id, "phone", phone, result)
+        else:
+            send_message(chat_id, "❌ Использование: /phone +380991234567")
+    
+    elif text.startswith("/car"):
+        car = text.replace("/car", "").strip()
+        if car:
+            send_message(chat_id, f"🔍 Поиск авто: {car}\n⏳ Подождите...")
+            result = run_car_search(car)
+            send_message(chat_id, result)
+            save_search(chat_id, "car", car, result)
+        else:
+            send_message(chat_id, "❌ Использование: /car а123вв777")
+    
     else:
-        result = "❌ Неизвестный тип поиска"
-    
-    await status_msg.delete()
-    await update.message.reply_text(result, reply_markup=get_back_keyboard())
+        send_message(chat_id, "❌ Неизвестная команда. Используйте /help")
 
-async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text(
-        "📚 *ПОМОЩЬ*\n\nКоманды:\n/start - Запустить\n/menu - Главное меню\n/help - Помощь\n\n10 запросов в минуту",
-        parse_mode='Markdown',
-        reply_markup=get_back_keyboard()
-    )
+# ========== ОСНОВНОЙ ЦИКЛ ==========
+print("🤖 Бот запущен...")
+last_id = 0
 
-async def menu_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("🔍 Главное меню:", reply_markup=get_main_keyboard())
-
-async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    logger.error(f"Ошибка: {context.error}")
-    if update and update.effective_message:
-        await update.effective_message.reply_text("❌ Ошибка. Попробуйте позже.")
-
-# ========== ЗАПУСК ==========
-def main():
-    """Запуск бота"""
-    # Создаем приложение
-    application = Application.builder().token(TOKEN).build()
-    
-    # Команды
-    application.add_handler(CommandHandler("start", start))
-    application.add_handler(CommandHandler("help", help_command))
-    application.add_handler(CommandHandler("menu", menu_command))
-    
-    # Callback обработчики для кнопок
-    application.add_handler(CallbackQueryHandler(search_prompt, pattern="^search_"))
-    application.add_handler(CallbackQueryHandler(menu_callback, pattern="^menu$"))
-    application.add_handler(CallbackQueryHandler(help_command, pattern="^help$"))
-    
-    # Обработка текста
-    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_search_input))
-    
-    # Ошибки
-    application.add_error_handler(error_handler)
-    
-    # Запуск
-    print("🤖 Бот запущен! Нажми Ctrl+C для остановки.")
-    application.run_polling(allowed_updates=Update.ALL_TYPES)
-
-if __name__ == "__main__":
-    main()
+while True:
+    try:
+        updates = get_updates(last_id + 1)
+        
+        for update in updates.get("result", []):
+            last_id = update["update_id"]
+            
+            if "message" not in update:
+                continue
+            
+            chat_id = update["message"]["chat"]["id"]
+            text = update["message"].get("text", "")
+            username = update["message"].get("from", {}).get("first_name", "Пользователь")
+            
+            # Регистрация пользователя
+            conn = sqlite3.connect('bot_database.db')
+            c = conn.cursor()
+            c.execute("INSERT OR IGNORE INTO users VALUES (?, ?, ?)",
+                      (chat_id, datetime.now().isoformat(), datetime.now().isoformat()))
+            c.execute("UPDATE users SET last_active = ? WHERE user_id = ?",
+                      (datetime.now().isoformat(), chat_id))
+            conn.commit()
+            conn.close()
+            
+            handle_command(chat_id, text, username)
+        
+        time.sleep(1)
+        
+    except Exception as e:
+        print(f"Ошибка: {e}")
+        time.sleep(5)
