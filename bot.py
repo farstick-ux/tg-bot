@@ -9,7 +9,7 @@ import subprocess
 import time
 import re
 
-TOKEN = "8593348292:AAGS-F1RFU_zzOWo0f3-gr4lPzNgbLqeBRo"
+TOKEN = "7632894734:AAGAyaDvdpPgzDgq244Gzj5U4ASms_VQGV0"
 URL = f"https://api.telegram.org/bot{TOKEN}/"
 
 def send_message(chat_id, text):
