@@ -96,7 +96,7 @@ def run_nickname_search_auto(username):
             variants.add(pref + username + suff)
             variants.add(pref + username.lower() + suff)
     
-    variants = sorted(list(variants))[:30]
+    variants = sorted(list(variants))[:10]
     
     # ========== СОЦСЕТИ ==========
     sites = {
