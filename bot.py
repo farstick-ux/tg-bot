@@ -1,159 +1,142 @@
-import requests
-import subprocess
-import time
-import re
-import threading
 import os
+import re
+import subprocess
+import sys
+import time
+import asyncio
 import logging
-from typing import Optional, Dict, Any
-from flask import Flask, request, jsonify
+import sqlite3
+import json
+from datetime import datetime
+from collections import defaultdict
+from typing import Dict, List, Optional, Tuple
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram.ext import (
+    Application, CommandHandler, CallbackQueryHandler, MessageHandler, 
+    filters, ContextTypes
+)
+import requests
+import aiohttp
+from bs4 import BeautifulSoup
 
-# ========== НАСТРОЙКА ==========
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+# ========== НАСТРОЙКИ ==========
+TOKEN = os.getenv("BOT_TOKEN", "7632894734:AAGAyaDvdpPgzDgq244Gzj5U4ASms_VQGV0")
+ADMIN_IDS = [123456789]  # Замените на ваш Telegram ID
+
+# Логирование
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
 logger = logging.getLogger(__name__)
 
-# ТОКЕН - используйте переменные окружения!
-TOKEN = os.getenv("BOT_TOKEN")
-if not TOKEN:
-    logger.error("BOT_TOKEN не установлен!")
-    # Для тестов - НЕ ИСПОЛЬЗУЙТЕ В ПРОДАКШЕНЕ!
-    TOKEN = "7632894734:AAGAyaDvdpPgzDgq244Gzj5U4ASms_VQGV0"
+# ========== БАЗА ДАННЫХ ==========
+def init_db():
+    conn = sqlite3.connect('bot_database.db')
+    c = conn.cursor()
+    c.execute('''CREATE TABLE IF NOT EXISTS searches
+                 (user_id INT, type TEXT, query TEXT, result TEXT, date TEXT)''')
+    c.execute('''CREATE TABLE IF NOT EXISTS users
+                 (user_id INT PRIMARY KEY, first_seen TEXT, last_active TEXT)''')
+    conn.commit()
+    conn.close()
 
-URL = f"https://api.telegram.org/bot{TOKEN}/"
+init_db()
 
-# ========== FLASK ДЛЯ HEALTH CHECK ==========
-flask_app = Flask(__name__)
+def save_search(user_id: int, search_type: str, query: str, result: str):
+    conn = sqlite3.connect('bot_database.db')
+    c = conn.cursor()
+    c.execute("INSERT INTO searches VALUES (?, ?, ?, ?, ?)",
+              (user_id, search_type, query, result[:500], datetime.now().isoformat()))
+    conn.commit()
+    conn.close()
 
-@flask_app.route('/')
-def health_check():
-    return jsonify({"status": "ok", "message": "Bot is running"}), 200
+# ========== RATE LIMITING ==========
+user_commands = defaultdict(list)
 
-@flask_app.route('/health')
-def health():
-    return jsonify({"status": "alive", "timestamp": time.time()}), 200
+def rate_limit(user_id: int, limit: int = 10, per_seconds: int = 60) -> Tuple[bool, int]:
+    """Проверка лимита команд. Возвращает (разрешено, осталось_секунд)"""
+    now = time.time()
+    user_commands[user_id] = [t for t in user_commands[user_id] if now - t < per_seconds]
+    
+    if len(user_commands[user_id]) >= limit:
+        oldest = min(user_commands[user_id])
+        wait_time = int(per_seconds - (now - oldest))
+        return False, wait_time
+    
+    user_commands[user_id].append(now)
+    return True, 0
 
-def run_flask():
-    """Запускаем Flask на порту, который требует Render"""
-    port = int(os.getenv("PORT", 10000))
-    logger.info(f"Запуск Flask сервера на порту {port}")
-    flask_app.run(host='0.0.0.0', port=port)
-
-# Запускаем Flask в отдельном потоке
-flask_thread = threading.Thread(target=run_flask, daemon=True)
-flask_thread.start()
-
-# ========== KEEP ALIVE (уже не нужен, но оставлю) ==========
-def keep_alive():
+# ========== АВТОМАТИЧЕСКОЕ ОБНОВЛЕНИЕ ==========
+async def check_for_updates():
+    """Проверка обновлений на GitHub (каждый час)"""
     while True:
-        time.sleep(300)
+        await asyncio.sleep(3600)  # 1 час
         try:
-            # Пингуем себя через internal URL
-            requests.get("http://localhost:10000/health", timeout=5)
-            logger.info("Health check успешен")
+            # Проверяем последний коммит на GitHub
+            repo_url = "https://api.github.com/repos/YOUR_USERNAME/YOUR_REPO/commits/main"
+            async with aiohttp.ClientSession() as session:
+                async with session.get(repo_url) as resp:
+                    if resp.status == 200:
+                        data = await resp.json()
+                        latest_commit = data['sha'][:7]
+                        
+                        # Сравниваем с текущей версией
+                        current_version = os.getenv('BOT_VERSION', 'unknown')
+                        if latest_commit != current_version:
+                            logger.info(f"Доступно обновление! {current_version} -> {latest_commit}")
+                            # Отправляем админу
+                            for admin_id in ADMIN_IDS:
+                                await send_message(admin_id, f"🔄 Доступно обновление бота!\nНовая версия: {latest_commit}")
         except Exception as e:
-            logger.debug(f"Health check: {e}")
+            logger.error(f"Ошибка проверки обновлений: {e}")
 
-threading.Thread(target=keep_alive, daemon=True).start()
+async def auto_restart():
+    """Автоматический перезапуск каждый день в 4 утра"""
+    while True:
+        now = datetime.now()
+        next_restart = now.replace(hour=4, minute=0, second=0, microsecond=0)
+        if now >= next_restart:
+            next_restart += timedelta(days=1)
+        
+        wait_seconds = (next_restart - now).total_seconds()
+        await asyncio.sleep(wait_seconds)
+        
+        logger.info("Автоматический перезапуск...")
+        os.execv(sys.executable, ['python'] + sys.argv)
 
-# ========== ФУНКЦИИ БОТА ==========
-def send_message(chat_id: int, text: str) -> bool:
+# ========== ФУНКЦИИ ПОИСКА ==========
+
+async def run_email_search(email: str) -> str:
+    """Поиск по email через holehe"""
     try:
-        response = requests.post(URL + "sendMessage", 
-                                json={"chat_id": chat_id, "text": text},
-                                timeout=10)
-        return response.status_code == 200
-    except Exception as e:
-        logger.error(f"Ошибка отправки: {e}")
-        return False
-
-def get_updates(offset: Optional[int] = None) -> Dict[str, Any]:
-    params = {"timeout": 30}
-    if offset:
-        params["offset"] = offset
-    try:
-        response = requests.get(URL + "getUpdates", params=params, timeout=35)
-        return response.json()
-    except Exception as e:
-        logger.error(f"Ошибка получения обновлений: {e}")
-        return {"result": []}
-
-def run_email_search(email: str) -> str:
-    """Поиск по email с использованием holehe (исправленная версия)"""
-    try:
-        result = subprocess.run(
-            ["holehe", email, "--no-color"],
+        result = await asyncio.to_thread(
+            subprocess.run, 
+            ["holehe", email, "--no-color"], 
             capture_output=True, 
             text=True, 
             timeout=60
         )
         
-        if result.returncode == 127:
-            return f"❌ Holehe не установлен. Установите: pip install holehe"
-        
-        # Очищаем от ANSI кодов
         clean = re.sub(r'\x1b\[[0-9;]*m', '', result.stdout)
-        
         found_sites = []
-        excluded_keywords = ['email', 'e-mail', 'mail', 'found', 'site', 'service', 'web']
         
         for line in clean.split("\n"):
-            line = line.strip()
             if "[+]" in line:
-                # Извлекаем название сайта
                 site = line.replace("[+]", "").strip()
-                
-                # Убираем URL протоколы
                 site = re.sub(r'https?://', '', site)
-                
-                # Берем первое слово или домен
-                parts = site.split()
-                if parts:
-                    site = parts[0]
-                
-                # Очищаем от лишних символов
-                site = site.strip('.,;:!?')
-                
-                # Фильтруем мусорные названия
-                is_valid = True
-                site_lower = site.lower()
-                
-                # Проверка на мусорные слова
-                for bad_word in excluded_keywords:
-                    if bad_word in site_lower and len(site) < 10:
-                        is_valid = False
-                        break
-                
-                # Проверка, что это похоже на домен или название сайта
-                if is_valid and len(site) > 2 and not site.isdigit():
-                    # Убираем дубликаты
-                    if site not in found_sites:
-                        found_sites.append(f"✅ {site}")
+                site = site.split()[0] if site.split() else site
+                if len(site) > 3 and site.lower() not in ['email', 'mail']:
+                    found_sites.append(f"✅ {site[:50]}")
         
-        # Дополнительная фильтрация результата
-        filtered_sites = []
-        for item in found_sites:
-            # Убираем совсем короткие или бессмысленные
-            site_name = item.replace("✅ ", "")
-            if len(site_name) > 2 and site_name.lower() not in ['email', 'mail', 'web', 'site']:
-                filtered_sites.append(item)
-        
-        if filtered_sites:
-            result_text = f"🔍 Email: {email}\n\n✅ НАЙДЕНО НА САЙТАХ:\n"
-            result_text += "\n".join(filtered_sites[:30])
-            result_text += f"\n\n🔗 Проверить вручную:\nhttps://haveibeenpwned.com/account/{email}"
-            return result_text
-        else:
-            return f"🔍 Email: {email}\n\n❌ Ничего не найдено через holehe\n\n🔗 Проверить вручную:\nhttps://haveibeenpwned.com/account/{email}"
-            
-    except subprocess.TimeoutExpired:
-        return f"❌ Таймаут: holehe слишком долго обрабатывает email {email}"
-    except FileNotFoundError:
-        return "❌ Holehe не установлен. Установите: pip install holehe"
+        if found_sites:
+            return f"🔍 Email: {email}\n\n✅ НАЙДЕНО:\n" + "\n".join(found_sites[:20])
+        return f"🔍 Email: {email}\n\n❌ Ничего не найдено"
     except Exception as e:
-        logger.error(f"Ошибка holehe: {e}")
-        return f"❌ Ошибка при поиске: {str(e)}"
+        return f"❌ Ошибка: {e}"
 
-def run_nickname_search(username: str) -> str:
+async def run_nickname_search(username: str) -> str:
+    """Поиск по никнейму"""
     sites = {
         "TikTok": f"https://www.tiktok.com/@{username}",
         "Instagram": f"https://instagram.com/{username}",
@@ -166,39 +149,48 @@ def run_nickname_search(username: str) -> str:
     }
     
     found = []
-    for site_name, url in sites.items():
-        try:
-            r = requests.get(url, timeout=5, allow_redirects=False)
-            if r.status_code == 200:
-                if site_name == "Telegram":
-                    if "tgme_page_title" in r.text and "If you have Telegram" not in r.text:
-                        found.append(f"✅ {site_name}: {url}")
-                else:
-                    found.append(f"✅ {site_name}: {url}")
-        except:
-            pass
+    async with aiohttp.ClientSession() as session:
+        for site_name, url in sites.items():
+            try:
+                async with session.get(url, timeout=5, allow_redirects=False) as resp:
+                    if resp.status == 200:
+                        if site_name == "Telegram":
+                            text = await resp.text()
+                            if "tgme_page_title" in text and "If you have Telegram" not in text:
+                                found.append(f"✅ {site_name}: {url}")
+                        else:
+                            found.append(f"✅ {site_name}: {url}")
+            except:
+                pass
     
     if found:
         return f"🔍 НИКНЕЙМ: {username}\n\n" + "\n".join(found)
-    else:
-        return f"🔍 По никнейму {username} ничего не найдено"
+    return f"🔍 По никнейму {username} ничего не найдено"
 
-def run_ip_search(ip: str) -> str:
+async def run_ip_search(ip: str) -> str:
+    """Поиск по IP"""
+    ip_pattern = re.compile(r'^(\d{1,3}\.){3}\d{1,3}$')
+    if not ip_pattern.match(ip):
+        return "❌ Неверный формат IP-адреса"
+    
     try:
-        response = requests.get(f"http://ip-api.com/json/{ip}", timeout=10)
-        data = response.json()
-        if data.get('status') == 'success':
-            result = f"🌐 IP: {ip}\n\n"
-            result += f"📍 Страна: {data.get('country', 'Неизвестно')}\n"
-            result += f"🏙️ Город: {data.get('city', 'Неизвестно')}\n"
-            result += f"🏢 Провайдер: {data.get('isp', 'Неизвестно')}\n"
-            return result
-        else:
-            return f"❌ Не удалось найти IP {ip}"
+        async with aiohttp.ClientSession() as session:
+            async with session.get(f"http://ip-api.com/json/{ip}", timeout=10) as resp:
+                data = await resp.json()
+                if data.get('status') == 'success':
+                    return f"""🌐 IP: {ip}
+
+📍 Страна: {data.get('country', 'Неизвестно')}
+🏙️ Город: {data.get('city', 'Неизвестно')}
+🏢 Провайдер: {data.get('isp', 'Неизвестно')}
+🗺️ Координаты: {data.get('lat')}, {data.get('lon')}
+💻 Организация: {data.get('org', 'Неизвестно')}"""
+                return f"❌ Не удалось найти IP {ip}"
     except Exception as e:
         return f"❌ Ошибка: {e}"
 
-def run_phone_search(phone: str) -> str:
+async def run_phone_search(phone: str) -> str:
+    """Поиск по телефону"""
     phone_clean = re.sub(r'[^0-9+]', '', phone)
     result = f"📱 ТЕЛЕФОН: {phone_clean}\n\n"
     result += f"• WhatsApp: https://wa.me/{phone_clean}\n"
@@ -206,90 +198,310 @@ def run_phone_search(phone: str) -> str:
     result += f"• Google: https://www.google.com/search?q={phone_clean}\n"
     return result
 
-def run_photo_search() -> str:
+async def run_car_search(plate_number: str) -> str:
+    """Поиск по номеру автомобиля"""
+    plate_clean = re.sub(r'[^A-Za-z0-9]', '', plate_number).upper()
+    
+    result = f"🚗 НОМЕР АВТО: {plate_clean}\n\n"
+    
+    # 1. Проверка через ГИБДД (Россия)
+    if re.match(r'^[A-Z]{1}\d{3}[A-Z]{2}\d{2,3}$', plate_clean):
+        result += "🇷🇺 РОССИЯ:\n"
+        result += f"• ГИБДД: https://xn--90adear.xn--p1ai/check/auto/{plate_clean}\n"
+        result += f"• Автокод: https://avtokod.mos.ru/CheckCar/Index?number={plate_clean}\n"
+        result += f"• Штрафы ГИБДД: https://xn--90adear.xn--p1ai/check/fines/{plate_clean}\n"
+    
+    # 2. Украина
+    elif re.match(r'^[A-Z]{2}\d{4}[A-Z]{2}$', plate_clean):
+        result += "🇺🇦 УКРАИНА:\n"
+        result += f"• Опендатабот: https://opendatabot.ua/c/auto/{plate_clean}\n"
+        result += f"• Auto.ria: https://auto.ria.ua/search/?number={plate_clean}\n"
+    
+    # 3. Казахстан
+    elif re.match(r'^[A-Z]{1}\d{3}[A-Z]{3}$', plate_clean):
+        result += "🇰🇿 КАЗАХСТАН:\n"
+        result += f"• E-Gov: https://egov.kz/cms/ru/services/transport/check_vehicle_auto/{plate_clean}\n"
+    
+    # 4. Беларусь
+    elif re.match(r'^\d{4}[A-Z]{2}-\d$', plate_clean):
+        result += "🇧🇾 БЕЛАРУСЬ:\n"
+        result += f"• МВД РБ: https://web.mvd.gov.by/ru/check-auto/{plate_clean}\n"
+    
+    else:
+        result += "🌍 МЕЖДУНАРОДНЫЙ ПОИСК:\n"
+    
+    # Общие сервисы
+    result += f"\n🔍 ДОПОЛНИТЕЛЬНО:\n"
+    result += f"• Google: https://www.google.com/search?q={plate_clean}+номер+авто\n"
+    result += f"• Avito: https://www.avito.ru/all?q={plate_clean}\n"
+    result += f"• Дром: https://www.drom.ru/search/?text={plate_clean}\n"
+    
+    # Carfax для иностранных номеров
+    if len(plate_clean) > 4:
+        result += f"• Carfax (только платно): https://www.carfax.com/vehicle/{plate_clean}\n"
+    
+    return result
+
+async def run_photo_search() -> str:
+    """Поиск по фото"""
     return """🔎 ПОИСК ПО ФОТО
 
-Ссылки для поиска:
-1. https://www.reversely.ai/ru/face-search
-2. https://images.google.com
-3. https://yandex.com/images/
-4. https://tineye.com
-5. https://www.bing.com/visualsearch"""
+🔗 СЕРВИСЫ ДЛЯ ПОИСКА:
 
-# ========== ОСНОВНОЙ ЦИКЛ БОТА ==========
-def main():
-    last_id = 0
-    logger.info("🤖 Бот запущен и готов к работе!")
+1. Google Images:
+   https://images.google.com
+
+2. Yandex Images:
+   https://yandex.com/images/
+
+3. TinEye:
+   https://tineye.com
+
+4. Bing Visual Search:
+   https://www.bing.com/visualsearch
+
+5. Reversely.ai (поиск лиц):
+   https://www.reversely.ai/ru/face-search
+
+6. PimEyes (поиск лиц):
+   https://pimeyes.com
+
+📌 Инструкция:
+1. Откройте любой сервис
+2. Нажмите на иконку камеры
+3. Загрузите фото
+4. Получите результаты
+
+💡 Совет: Используйте несколько сервисов для лучших результатов"""
+
+# ========== ИНЛАЙН-КЛАВИАТУРЫ ==========
+def get_main_keyboard() -> InlineKeyboardMarkup:
+    """Главное меню"""
+    keyboard = [
+        [InlineKeyboardButton("🔍 Поиск по email", callback_data="search_email")],
+        [InlineKeyboardButton("👤 Поиск по никнейму", callback_data="search_nickname")],
+        [InlineKeyboardButton("🌐 Поиск по IP", callback_data="search_ip")],
+        [InlineKeyboardButton("📱 Поиск по телефону", callback_data="search_phone")],
+        [InlineKeyboardButton("🚗 Поиск по номеру авто", callback_data="search_car")],
+        [InlineKeyboardButton("🖼️ Поиск по фото", callback_data="search_photo")],
+        [InlineKeyboardButton("❓ Помощь", callback_data="help")],
+        [InlineKeyboardButton("📊 Статистика", callback_data="stats")],
+    ]
+    return InlineKeyboardMarkup(keyboard)
+
+def get_back_keyboard() -> InlineKeyboardMarkup:
+    """Кнопка возврата в меню"""
+    keyboard = [[InlineKeyboardButton("🔙 Назад в меню", callback_data="menu")]]
+    return InlineKeyboardMarkup(keyboard)
+
+# ========== ОБРАБОТЧИКИ КОМАНД ==========
+
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Обработчик команды /start"""
+    user = update.effective_user
+    user_id = user.id
     
-    while True:
-        try:
-            updates = get_updates(last_id + 1)
-            
-            for update in updates.get("result", []):
-                last_id = update["update_id"]
-                
-                if "message" not in update:
-                    continue
-                
-                chat_id = update["message"]["chat"]["id"]
-                text = update["message"].get("text", "")
-                
-                if text == "/start":
-                    send_message(chat_id, """🤖 OSINT БОТ
+    # Rate limiting
+    allowed, wait_time = rate_limit(user_id)
+    if not allowed:
+        await update.message.reply_text(f"⏳ Слишком много запросов! Подождите {wait_time} секунд.")
+        return
+    
+    # Регистрация пользователя
+    conn = sqlite3.connect('bot_database.db')
+    c = conn.cursor()
+    c.execute("INSERT OR IGNORE INTO users VALUES (?, ?, ?)",
+              (user_id, datetime.now().isoformat(), datetime.now().isoformat()))
+    c.execute("UPDATE users SET last_active = ? WHERE user_id = ?",
+              (datetime.now().isoformat(), user_id))
+    conn.commit()
+    conn.close()
+    
+    welcome_text = f"""🤖 Привет, {user.first_name}!
 
-Команды:
-/nickname <ник> - поиск по никнейму
-/email <email> - поиск по email
-/phone <номер> - поиск по телефону
-/ip <айпи> - поиск по IP
-/photo - поиск по фото
-/help - помощь""")
-                
-                elif text == "/help":
-                    send_message(chat_id, "📚 Примеры:\n/nickname qwerty\n/email test@mail.com\n/phone +380991234567\n/ip 8.8.8.8")
-                
-                elif text == "/photo":
-                    send_message(chat_id, run_photo_search())
-                
-                elif text.startswith("/nickname"):
-                    username = text.replace("/nickname", "").strip()
-                    if username:
-                        send_message(chat_id, f"🔍 Поиск {username}...")
-                        result = run_nickname_search(username)
-                        send_message(chat_id, result)
-                    else:
-                        send_message(chat_id, "❌ Использование: /nickname никнейм")
-                
-                elif text.startswith("/ip"):
-                    ip = text.replace("/ip", "").strip()
-                    if ip:
-                        send_message(chat_id, run_ip_search(ip))
-                    else:
-                        send_message(chat_id, "❌ Использование: /ip 8.8.8.8")
-                
-                elif text.startswith("/email"):
-                    email = text.replace("/email", "").strip()
-                    if email and "@" in email:
-                        send_message(chat_id, f"📧 Поиск {email}... (до 30 сек)")
-                        result = run_email_search(email)
-                        send_message(chat_id, result)
-                    else:
-                        send_message(chat_id, "❌ Использование: /email email@example.com")
-                
-                elif text.startswith("/phone"):
-                    phone = text.replace("/phone", "").strip()
-                    if phone:
-                        send_message(chat_id, run_phone_search(phone))
-                    else:
-                        send_message(chat_id, "❌ Использование: /phone +380991234567")
-            
-            time.sleep(1)
-            
-        except Exception as e:
-            logger.error(f"Критическая ошибка: {e}")
-            time.sleep(10)
+Я OSINT бот для поиска информации.
+
+🔍 Что я умею:
+• Поиск по email (holehe)
+• Поиск по никнейму
+• Поиск по IP адресу
+• Поиск по номеру телефона
+• Поиск по номеру авто
+• Поиск по фото (ссылки)
+
+Используй кнопки ниже для навигации 👇"""
+
+    await update.message.reply_text(welcome_text, reply_markup=get_main_keyboard())
+
+async def menu_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Возврат в главное меню"""
+    query = update.callback_query
+    await query.answer()
+    await query.edit_message_text("🔍 Главное меню:", reply_markup=get_main_keyboard())
+
+async def search_prompt(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Запрос данных для поиска"""
+    query = update.callback_query
+    await query.answer()
+    
+    search_type = query.data.replace("search_", "")
+    context.user_data['search_type'] = search_type
+    
+    prompts = {
+        "email": "📧 Введите email для поиска:",
+        "nickname": "👤 Введите никнейм для поиска:",
+        "ip": "🌐 Введите IP адрес для поиска:",
+        "phone": "📱 Введите номер телефона для поиска:",
+        "car": "🚗 Введите номер автомобиля для поиска:",
+        "photo": "🖼️ Поиск по фото"
+    }
+    
+    await query.edit_message_text(
+        prompts.get(search_type, "Введите данные для поиска:"),
+        reply_markup=get_back_keyboard()
+    )
+
+async def handle_search_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Обработка введенных данных для поиска"""
+    user_id = update.effective_user.id
+    search_type = context.user_data.get('search_type')
+    query_text = update.message.text.strip()
+    
+    # Rate limiting
+    allowed, wait_time = rate_limit(user_id)
+    if not allowed:
+        await update.message.reply_text(f"⏳ Подождите {wait_time} секунд перед следующим запросом.")
+        return
+    
+    # Отправляем сообщение о начале поиска
+    status_msg = await update.message.reply_text(f"🔍 Поиск... Это может занять до 30 секунд.")
+    
+    # Выполняем поиск
+    result = ""
+    if search_type == "email":
+        if "@" not in query_text:
+            await update.message.reply_text("❌ Неверный формат email!", reply_markup=get_back_keyboard())
+            return
+        result = await run_email_search(query_text)
+    
+    elif search_type == "nickname":
+        result = await run_nickname_search(query_text)
+    
+    elif search_type == "ip":
+        result = await run_ip_search(query_text)
+    
+    elif search_type == "phone":
+        result = await run_phone_search(query_text)
+    
+    elif search_type == "car":
+        result = await run_car_search(query_text)
+    
+    elif search_type == "photo":
+        result = await run_photo_search()
+    
+    # Сохраняем в БД
+    save_search(user_id, search_type, query_text, result)
+    
+    # Удаляем сообщение о статусе
+    await status_msg.delete()
+    
+    # Отправляем результат
+    await update.message.reply_text(result, reply_markup=get_back_keyboard())
+
+async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Помощь"""
+    help_text = """📚 *ПОМОЩЬ ПО БОТУ*
+
+*Команды:*
+/start - Запустить бота
+/menu - Главное меню
+/help - Эта справка
+/stats - Моя статистика
+
+*Как пользоваться:*
+1. Используй кнопки в меню
+2. Введи данные для поиска
+3. Жди результат
+
+*Ограничения:*
+• 10 запросов в минуту
+• Максимум 30 секунд на поиск
+
+*Вопросы:* @support_username"""
+    
+    await update.message.reply_text(help_text, parse_mode='Markdown', reply_markup=get_back_keyboard())
+
+async def stats_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Статистика пользователя"""
+    user_id = update.effective_user.id
+    
+    conn = sqlite3.connect('bot_database.db')
+    c = conn.cursor()
+    
+    # Количество поисков
+    c.execute("SELECT COUNT(*) FROM searches WHERE user_id = ?", (user_id,))
+    total_searches = c.fetchone()[0]
+    
+    # По типам
+    c.execute("SELECT type, COUNT(*) FROM searches WHERE user_id = ? GROUP BY type", (user_id,))
+    type_stats = c.fetchall()
+    
+    # Последний поиск
+    c.execute("SELECT date FROM searches WHERE user_id = ? ORDER BY date DESC LIMIT 1", (user_id,))
+    last_search = c.fetchone()
+    
+    conn.close()
+    
+    stats_text = f"""📊 *ВАША СТАТИСТИКА*
+
+Всего поисков: {total_searches}
+Последний поиск: {last_search[0][:19] if last_search else 'Нет'}
+
+*По типам:*"""
+    
+    for search_type, count in type_stats:
+        emoji = {"email": "📧", "nickname": "👤", "ip": "🌐", "phone": "📱", "car": "🚗"}.get(search_type, "🔍")
+        stats_text += f"\n{emoji} {search_type}: {count}"
+    
+    await update.message.reply_text(stats_text, parse_mode='Markdown', reply_markup=get_back_keyboard())
+
+async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Обработка ошибок"""
+    logger.error(f"Ошибка: {context.error}")
+    if update and update.effective_message:
+        await update.effective_message.reply_text("❌ Произошла ошибка. Попробуйте позже.")
+
+# ========== ЗАПУСК БОТА ==========
+async def main():
+    """Запуск бота"""
+    # Создаем приложение
+    application = Application.builder().token(TOKEN).build()
+    
+    # Регистрируем обработчики команд
+    application.add_handler(CommandHandler("start", start))
+    application.add_handler(CommandHandler("help", help_command))
+    application.add_handler(CommandHandler("stats", stats_command))
+    application.add_handler(CommandHandler("menu", menu_callback))
+    
+    # Регистрируем callback обработчики
+    application.add_handler(CallbackQueryHandler(search_prompt, pattern="^search_"))
+    application.add_handler(CallbackQueryHandler(menu_callback, pattern="^menu$"))
+    application.add_handler(CallbackQueryHandler(help_command, pattern="^help$"))
+    application.add_handler(CallbackQueryHandler(stats_command, pattern="^stats$"))
+    
+    # Обработчик текстовых сообщений
+    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_search_input))
+    
+    # Обработчик ошибок
+    application.add_error_handler(error_handler)
+    
+    # Запускаем фоновые задачи
+    asyncio.create_task(check_for_updates())
+    asyncio.create_task(auto_restart())
+    
+    # Запускаем бота
+    logger.info("Бот запущен!")
+    await application.run_polling()
 
 if __name__ == "__main__":
-    # Небольшая задержка для запуска Flask
-    time.sleep(2)
-    main()
+    asyncio.run(main())
