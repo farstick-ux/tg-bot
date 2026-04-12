@@ -3,7 +3,7 @@ import time
 
 while True:
     try:
-        requests.get("https://твой-бот.onrender.com")
+        requests.get("https://t.me/TracerGbot")
         print("Пинг отправлен")
     except:
         print("Ошибка")
