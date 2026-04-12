@@ -1,3 +1,4 @@
 requests==2.31.0
+flask==2.3.3
 phonenumbers==8.13.29
 holehe>=1.7.0
