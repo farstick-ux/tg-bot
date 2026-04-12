@@ -78,7 +78,7 @@ def get_updates(offset: Optional[int] = None) -> Dict[str, Any]:
         return {"result": []}
 
 def run_email_search(email: str) -> str:
-    """Поиск по email с holehe"""
+    """Поиск по email с использованием holehe (исправленная версия)"""
     try:
         result = subprocess.run(
             ["holehe", email, "--no-color"],
@@ -90,30 +90,68 @@ def run_email_search(email: str) -> str:
         if result.returncode == 127:
             return f"❌ Holehe не установлен. Установите: pip install holehe"
         
+        # Очищаем от ANSI кодов
         clean = re.sub(r'\x1b\[[0-9;]*m', '', result.stdout)
         
         found_sites = []
-        for line in clean.split("\n"):
-            if "[+]" in line:
-                site = line.replace("[+]", "").strip()
-                site = re.sub(r'https?://', '', site)
-                site = site.split()[0] if site.split() else site
-                if site and len(site) < 100:
-                    found_sites.append(f"✅ {site}")
+        excluded_keywords = ['email', 'e-mail', 'mail', 'found', 'site', 'service', 'web']
         
-        if found_sites:
-            result_text = f"🔍 Email: {email}\n\n✅ НАЙДЕНО:\n"
-            result_text += "\n".join(found_sites[:30])
-            result_text += f"\n\n🔗 Проверить: https://haveibeenpwned.com/account/{email}"
+        for line in clean.split("\n"):
+            line = line.strip()
+            if "[+]" in line:
+                # Извлекаем название сайта
+                site = line.replace("[+]", "").strip()
+                
+                # Убираем URL протоколы
+                site = re.sub(r'https?://', '', site)
+                
+                # Берем первое слово или домен
+                parts = site.split()
+                if parts:
+                    site = parts[0]
+                
+                # Очищаем от лишних символов
+                site = site.strip('.,;:!?')
+                
+                # Фильтруем мусорные названия
+                is_valid = True
+                site_lower = site.lower()
+                
+                # Проверка на мусорные слова
+                for bad_word in excluded_keywords:
+                    if bad_word in site_lower and len(site) < 10:
+                        is_valid = False
+                        break
+                
+                # Проверка, что это похоже на домен или название сайта
+                if is_valid and len(site) > 2 and not site.isdigit():
+                    # Убираем дубликаты
+                    if site not in found_sites:
+                        found_sites.append(f"✅ {site}")
+        
+        # Дополнительная фильтрация результата
+        filtered_sites = []
+        for item in found_sites:
+            # Убираем совсем короткие или бессмысленные
+            site_name = item.replace("✅ ", "")
+            if len(site_name) > 2 and site_name.lower() not in ['email', 'mail', 'web', 'site']:
+                filtered_sites.append(item)
+        
+        if filtered_sites:
+            result_text = f"🔍 Email: {email}\n\n✅ НАЙДЕНО НА САЙТАХ:\n"
+            result_text += "\n".join(filtered_sites[:30])
+            result_text += f"\n\n🔗 Проверить вручную:\nhttps://haveibeenpwned.com/account/{email}"
             return result_text
         else:
-            return f"🔍 Email: {email}\n\n❌ Ничего не найдено"
+            return f"🔍 Email: {email}\n\n❌ Ничего не найдено через holehe\n\n🔗 Проверить вручную:\nhttps://haveibeenpwned.com/account/{email}"
             
     except subprocess.TimeoutExpired:
-        return f"❌ Таймаут обработки email {email}"
+        return f"❌ Таймаут: holehe слишком долго обрабатывает email {email}"
+    except FileNotFoundError:
+        return "❌ Holehe не установлен. Установите: pip install holehe"
     except Exception as e:
         logger.error(f"Ошибка holehe: {e}")
-        return f"❌ Ошибка: {str(e)}"
+        return f"❌ Ошибка при поиске: {str(e)}"
 
 def run_nickname_search(username: str) -> str:
     sites = {
