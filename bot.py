@@ -19,7 +19,7 @@ def get_updates(offset=None):
 def run_photo_search(chat_id):
     """Поиск по фото - отправляет ссылки на сервисы"""
     
-    result = "ПОИСК ПО ФОТО\n\n"
+    result = "🔎 ПОИСК ПО ФОТО\n\n"
     result += "Для поиска этого фото перейдите по ссылкам:\n\n"
     
     # Ссылки на сервисы поиска по фото
@@ -125,16 +125,16 @@ def run_ip_search(ip):
         data = response.json()
         
         if data.get('status') == 'success':
-            result += f"Страна: {data.get('country', 'Неизвестно')}\n"
-            result += f"Город: {data.get('city', 'Неизвестно')}\n"
-            result += f"Провайдер: {data.get('isp', 'Неизвестно')}\n"
-            result += f"Координаты: {data.get('lat')}, {data.get('lon')}\n"
-            result += f"Часовой пояс: {data.get('timezone', 'Неизвестно')}\n"
+            result += f"🌎Страна: {data.get('country', 'Неизвестно')}\n"
+            result += f"🏙Город: {data.get('city', 'Неизвестно')}\n"
+            result += f"📡Провайдер: {data.get('isp', 'Неизвестно')}\n"
+            result += f"📍Координаты: {data.get('lat')}, {data.get('lon')}\n"
+            result += f"🕘Часовой пояс: {data.get('timezone', 'Неизвестно')}\n"
         else:
-            result += "Ошибка: не удалось получить информацию\n"
+            result += "🚫 Ошибка: не удалось получить информацию\n"
             
     except Exception as e:
-        result += f"Ошибка: {e}\n"
+        result += f"❌ Ошибка: {e}\n"
     
     return result
 
@@ -181,10 +181,10 @@ while True:
         text = update["message"].get("text", "")
         
         if text == "/start":
-            send_message(chat_id, "OSINT БОТ\n\nКоманды:\n/nickname <ник> - поиск по никнейму\n/email <email> - поиск по email\n/phone <номер> - поиск по телефону\n/ip <айпи> - поиск по айпи\n/photo - поиск по фото\n/help - помощь")
+            send_message(chat_id, "🤖OSINT БОТ\n\nКоманды:\n/nickname <ник> - поиск по никнейму\n/email <email> - поиск по email\n/phone <номер> - поиск по телефону\n/ip <айпи> - поиск по айпи\n/photo - поиск по фото\n/help - помощь")
         
         elif text == "/help":
-            send_message(chat_id, "ПРИМЕРЫ:\n/nickname qwerty\n/email test@mail.com\n/phone +380991234567\n/ip 8.8.8.8")
+            send_message(chat_id, "📋ПРИМЕРЫ:\n/nickname qwerty\n/email test@mail.com\n/phone +380991234567\n/ip 8.8.8.8")
         
         elif text == "/photo":
             run_photo_search(chat_id)
@@ -192,25 +192,25 @@ while True:
         elif text.startswith("/nickname"):
             username = text.replace("/nickname", "").strip()
             if username:
-                send_message(chat_id, f"Поиск никнейма: {username}\nПодождите...")
+                send_message(chat_id, f"🔎 Поиск никнейма: {username}\n⏳ Подождите...")
                 result = run_nickname_search(username)
-                send_message(chat_id, f"РЕЗУЛЬТАТ:\n{result}")
+                send_message(chat_id, f"📋 РЕЗУЛЬТАТ:\n{result}")
             else:
-                send_message(chat_id, "Использование: /nickname никнейм")
+                send_message(chat_id, "❌ Использование: /nickname никнейм")
         
         elif text.startswith("/ip"):
             ip = text.replace("/ip", "").strip()
             if ip:
-                send_message(chat_id, f"Поиск IP: {ip}\nПодождите...")
+                send_message(chat_id, f"🔎 Поиск IP: {ip}\n⏳ Подождите...")
                 result = run_ip_search(ip)
-                send_message(chat_id, f"РЕЗУЛЬТАТ:\n{result}")
+                send_message(chat_id, f"📋 РЕЗУЛЬТАТ:\n{result}")
             else:
-                send_message(chat_id, "Использование: /ip 8.8.8.8")
+                send_message(chat_id, "❌ Использование: /ip 8.8.8.8")
         
         elif text.startswith("/email"):
             email = text.replace("/email", "").strip()
             if email and "@" in email:
-                send_message(chat_id, f"Поиск email: {email}\nПодождите...")
+                send_message(chat_id, f"Поиск email: {email}\n⏳ Подождите...")
                 result = run_email_search(email)
                 send_message(chat_id, f"РЕЗУЛЬТАТ:\n{result}")
             else:
@@ -219,10 +219,10 @@ while True:
         elif text.startswith("/phone"):
             phone = text.replace("/phone", "").strip()
             if phone:
-                send_message(chat_id, f"Поиск номера: {phone}\nПодождите...")
+                send_message(chat_id, f"🔍 Поиск номера: {phone}\nПодождите...")
                 result = run_phone_search(phone)
-                send_message(chat_id, f"РЕЗУЛЬТАТ:\n{result}")
+                send_message(chat_id, f"📋 РЕЗУЛЬТАТ:\n{result}")
             else:
-                send_message(chat_id, "Использование: /phone +380991234567")
+                send_message(chat_id, "❌ Использование: /phone +380991234567")
     
     time.sleep(1)
