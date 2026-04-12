@@ -1,5 +1,6 @@
 import requests
 import subprocess
+subprocess.Popen(["python", "keep_alive.py"])
 import time
 import re
 
