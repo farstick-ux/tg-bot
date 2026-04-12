@@ -187,7 +187,8 @@ while True:
             send_message(chat_id, "📋ПРИМЕРЫ:\n/nickname qwerty\n/email test@mail.com\n/phone +380991234567\n/ip 8.8.8.8")
         
         elif text == "/photo":
-            run_photo_search(chat_id)
+            result = run_photo_search(chat_id)
+            send_message(chat_id, result)
         
         elif text.startswith("/nickname"):
             username = text.replace("/nickname", "").strip()
@@ -210,16 +211,16 @@ while True:
         elif text.startswith("/email"):
             email = text.replace("/email", "").strip()
             if email and "@" in email:
-                send_message(chat_id, f"Поиск email: {email}\n⏳ Подождите...")
+                send_message(chat_id, f"🔍 Поиск email: {email}\n⏳ Подождите...")
                 result = run_email_search(email)
-                send_message(chat_id, f"РЕЗУЛЬТАТ:\n{result}")
+                send_message(chat_id, f"📋 РЕЗУЛЬТАТ:\n{result}")
             else:
-                send_message(chat_id, "Использование: /email email@example.com")
+                send_message(chat_id, "❌ Использование: /email email@example.com")
         
         elif text.startswith("/phone"):
             phone = text.replace("/phone", "").strip()
             if phone:
-                send_message(chat_id, f"🔍 Поиск номера: {phone}\nПодождите...")
+                send_message(chat_id, f"🔍 Поиск номера: {phone}\n⏳ Подождите...")
                 result = run_phone_search(phone)
                 send_message(chat_id, f"📋 РЕЗУЛЬТАТ:\n{result}")
             else:
