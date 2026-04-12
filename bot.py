@@ -104,10 +104,31 @@ def run_nickname_search(username):
         return f"🔍 По никнейму {username} ничего не найдено"
 
 def run_phone_search(phone):
-    result = f"📞 Поиск по номеру: {phone}\n\n"
+    # Убираем лишние символы
+    import re
+    phone = re.sub(r'[^0-9+]', '', phone)
+    
+    result = f"НОМЕР: {phone}\n\n"
+    
     result += f"WhatsApp: https://wa.me/{phone}\n"
     result += f"Telegram: https://t.me/{phone}\n"
     result += f"Truecaller: https://www.truecaller.com/search/{phone}\n"
+    result += f"Google: https://www.google.com/search?q={phone}\n"
+    
+    # Определение страны по коду
+    if phone.startswith('+380'):
+        result += f"\nСтрана: Украина\n"
+    elif phone.startswith('+7'):
+        result += f"\nСтрана: Россия\n"
+    elif phone.startswith('+1'):
+        result += f"\nСтрана: США/Канада\n"
+    elif phone.startswith('+48'):
+        result += f"\nСтрана: Польша\n"
+    elif phone.startswith('+44'):
+        result += f"\nСтрана: Великобритания\n"
+    elif phone.startswith('+49'):
+        result += f"\nСтрана: Германия\n"
+    
     return result
 
 last_id = 0
