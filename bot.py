@@ -75,7 +75,7 @@ def run_email_search(email):
     except Exception as e:
         return f"❌ Ошибка: {e}"
 
-def run_nickname_search_auto(username):
+def run_nickname_search(username):
     """Автоматический поиск по никнейму - генерация 30 вариантов и проверка"""
     
     import requests
@@ -96,7 +96,7 @@ def run_nickname_search_auto(username):
             variants.add(pref + username + suff)
             variants.add(pref + username.lower() + suff)
     
-    variants = sorted(list(variants))[:10]
+    variants = sorted(list(variants))[:30]
     
     # ========== СОЦСЕТИ ==========
     sites = {
