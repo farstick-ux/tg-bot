@@ -61,13 +61,27 @@ def keep_alive():
 
 threading.Thread(target=keep_alive, daemon=True).start()
 
-def send_message(chat_id, text):
+# ========== НОВАЯ ФУНКЦИЯ "ПЕЧАТАЕТ..." ==========
+def send_action(chat_id, action="typing"):
+    """Отправляет действие бота (печатает, ищет и т.д.)"""
     try:
+        requests.post(URL + "sendChatAction", 
+                      json={"chat_id": chat_id, "action": action}, timeout=5)
+    except:
+        pass
+
+def send_message(chat_id, text, parse_mode=None):
+    try:
+        data = {"chat_id": chat_id, "text": text}
+        if parse_mode:
+            data["parse_mode"] = parse_mode
+        
         if len(text) > 4000:
             for i in range(0, len(text), 4000):
-                requests.post(URL + "sendMessage", json={"chat_id": chat_id, "text": text[i:i+4000]}, timeout=10)
+                data["text"] = text[i:i+4000]
+                requests.post(URL + "sendMessage", json=data, timeout=10)
         else:
-            requests.post(URL + "sendMessage", json={"chat_id": chat_id, "text": text}, timeout=10)
+            requests.post(URL + "sendMessage", json=data, timeout=10)
     except Exception as e:
         print(f"Ошибка отправки: {e}")
 
@@ -95,10 +109,10 @@ def run_email_search(email):
                 if len(site) > 3 and site.lower() not in ['email', 'mail']:
                     found_sites.append(f"✅ {site[:50]}")
         if found_sites:
-            return f"🔍 Email: {email}\n\n✅ НАЙДЕНО:\n" + "\n".join(found_sites[:20])
-        return f"🔍 Email: {email}\n\n❌ Ничего не найдено"
+            return f"📧 *Email:* {email}\n\n✅ *НАЙДЕНО:*\n" + "\n".join(found_sites[:20])
+        return f"📧 *Email:* {email}\n\n❌ *Ничего не найдено*"
     except Exception as e:
-        return f"❌ Ошибка: {e}"
+        return f"❌ *Ошибка:* {e}"
 
 def run_nickname_search(username):
     sites = {
@@ -124,30 +138,30 @@ def run_nickname_search(username):
         except:
             pass
     if found:
-        return f"🔍 НИКНЕЙМ: {username}\n\n" + "\n".join(found)
-    return f"🔍 По никнейму {username} ничего не найдено"
+        return f"👤 *Никнейм:* {username}\n\n✅ *НАЙДЕНО:*\n" + "\n".join(found)
+    return f"👤 *Никнейм:* {username}\n\n❌ *Ничего не найдено*"
 
 def run_ip_search(ip):
     ip_pattern = re.compile(r'^(\d{1,3}\.){3}\d{1,3}$')
     if not ip_pattern.match(ip):
-        return "❌ Неверный формат IP-адреса"
+        return "❌ *Неверный формат IP-адреса*"
     try:
         response = requests.get(f"http://ip-api.com/json/{ip}", timeout=10)
         data = response.json()
         if data.get('status') == 'success':
-            return f"""🌐 IP: {ip}
+            return f"""🌐 *IP:* {ip}
 
-📍 Страна: {data.get('country', 'Неизвестно')}
-🏙️ Город: {data.get('city', 'Неизвестно')}
-🏢 Провайдер: {data.get('isp', 'Неизвестно')}
-🗺️ Координаты: {data.get('lat')}, {data.get('lon')}"""
-        return f"❌ Не удалось найти IP {ip}"
+📍 *Страна:* {data.get('country', 'Неизвестно')}
+🏙️ *Город:* {data.get('city', 'Неизвестно')}
+🏢 *Провайдер:* {data.get('isp', 'Неизвестно')}
+🗺️ *Координаты:* {data.get('lat')}, {data.get('lon')}"""
+        return f"❌ *Не удалось найти IP* {ip}"
     except Exception as e:
-        return f"❌ Ошибка: {e}"
+        return f"❌ *Ошибка:* {e}"
 
 def run_phone_search(phone):
     phone_clean = re.sub(r'[^0-9+]', '', phone)
-    result = f"📱 ТЕЛЕФОН: {phone_clean}\n\n"
+    result = f"📱 *Телефон:* {phone_clean}\n\n"
     result += f"• WhatsApp: https://wa.me/{phone_clean}\n"
     result += f"• Telegram: https://t.me/{phone_clean}\n"
     result += f"• Google: https://www.google.com/search?q={phone_clean}\n"
@@ -155,36 +169,36 @@ def run_phone_search(phone):
 
 def run_car_search(plate_number):
     plate_clean = re.sub(r'[^A-Za-z0-9]', '', plate_number).upper()
-    result = f"🚗 НОМЕР АВТО: {plate_clean}\n\n"
+    result = f"🚗 *Номер авто:* {plate_clean}\n\n"
     
     if re.match(r'^[A-Z]{1}\d{3}[A-Z]{2}\d{2,3}$', plate_clean):
-        result += "🇷🇺 РОССИЯ:\n"
+        result += "🇷🇺 *РОССИЯ:*\n"
         result += f"• ГИБДД: https://xn--90adear.xn--p1ai/check/auto/{plate_clean}\n"
         result += f"• Автокод: https://avtokod.mos.ru/CheckCar/Index?number={plate_clean}\n"
     elif re.match(r'^[A-Z]{2}\d{4}[A-Z]{2}$', plate_clean):
-        result += "🇺🇦 УКРАИНА:\n"
+        result += "🇺🇦 *УКРАИНА:*\n"
         result += f"• Опендатабот: https://opendatabot.ua/c/auto/{plate_clean}\n"
     elif re.match(r'^[A-Z]{1}\d{3}[A-Z]{3}$', plate_clean):
-        result += "🇰🇿 КАЗАХСТАН:\n"
+        result += "🇰🇿 *КАЗАХСТАН:*\n"
         result += f"• E-Gov: https://egov.kz/cms/ru/services/transport/check_vehicle_auto/{plate_clean}\n"
     else:
-        result += "🌍 МЕЖДУНАРОДНЫЙ ПОИСК:\n"
+        result += "🌍 *МЕЖДУНАРОДНЫЙ ПОИСК:*\n"
     
     result += f"\n🔍 Google: https://www.google.com/search?q={plate_clean}+номер+авто\n"
     result += f"🔍 Avito: https://www.avito.ru/all?q={plate_clean}\n"
     return result
 
 def run_photo_search():
-    return """🔎 ПОИСК ПО ФОТО
+    return """🔎 *ПОИСК ПО ФОТО*
 
-🔗 СЕРВИСЫ ДЛЯ ПОИСКА:
+🔗 *Сервисы для поиска:*
 
 1. Google Search: https://google.com
 2. Yandex Images: https://yandex.com/images/
 3. PimEyes: https://pimeyes.com
 4. Bing Visual Search: https://www.bing.com/visualsearch
 
-📌 Инструкция:
+📌 *Инструкция:*
 1. Откройте любой сервис
 2. Нажмите на иконку камеры
 3. Загрузите фото
@@ -195,47 +209,67 @@ def handle_command(chat_id, text, username):
     # Rate limiting
     allowed, wait_time = rate_limit(chat_id)
     if not allowed:
-        send_message(chat_id, f"⏳ Слишком много запросов! Подождите {wait_time} секунд.")
+        send_message(chat_id, f"⏳ *Слишком много запросов!* Подождите {wait_time} секунд.", parse_mode="Markdown")
         return
     
     if text == "/start":
-        welcome = f"""🤖 Привет!
+        welcome = f"""🤖 *Привет, {username}!*
 
-Я OSINT бот для поиска информации.
+Я *OSINT бот* для поиска информации в открытых источниках.
 
-🔍 Команды:
-/email <email> - поиск по email
-/nickname <ник> - поиск по никнейму
-/ip <айпи> - поиск по IP
-/phone <номер> - поиск по телефону
-/car <номер> - поиск по номеру авто
-/photo - поиск по фото
-/help - помощь
-/stats - моя статистика"""
+━━━━━━━━━━━━━━━━━━━━━
+🔍 *ДОСТУПНЫЕ КОМАНДЫ:*
+━━━━━━━━━━━━━━━━━━━━━
+
+📧 `/email` - поиск по email
+👤 `/nickname` - поиск по никнейму
+🌐 `/ip` - информация об IP
+📱 `/phone` - поиск по телефону
+🚗 `/car` - поиск по номеру авто
+🖼️ `/photo` - поиск по фото
+📊 `/stats` - моя статистика
+❓ `/help` - помощь
+
+━━━━━━━━━━━━━━━━━━━━━
+💡 *Пример:* `/email test@mail.com`
+🤖 *Версия:* 2.0 | Бесплатно"""
         
-        
-        send_message(chat_id, welcome)
+        send_message(chat_id, welcome, parse_mode="Markdown")
     
     elif text == "/help":
-        help_text = """📚 *ПОМОЩЬ*
+        help_text = """❓ *ПОМОЩЬ ПО БОТУ*
 
-*Команды:*
-/email example@mail.com - поиск email
-/nickname username - поиск никнейма
-/ip 8.8.8.8 - поиск IP
-/phone +380991234567 - поиск телефона
-/car а123вв777 - поиск авто
-/photo - сервисы поиска фото
-/stats - моя статистика
+━━━━━━━━━━━━━━━━━━━━━
+📚 *ОСНОВНЫЕ КОМАНДЫ:*
+━━━━━━━━━━━━━━━━━━━━━
 
-*Ограничения:* 10 запросов в минуту"""
-        send_message(chat_id, help_text)
+🔍 `/email example@mail.com`
+👤 `/nickname username`
+🌐 `/ip 8.8.8.8`
+📱 `/phone +380991234567`
+🚗 `/car а123вв777`
+🖼️ `/photo` - сервисы поиска фото
+📊 `/stats` - моя статистика
+
+━━━━━━━━━━━━━━━━━━━━━
+⚠️ *ОГРАНИЧЕНИЯ:*
+━━━━━━━━━━━━━━━━━━━━━
+• 10 запросов в минуту
+• Максимум 60 секунд на поиск
+
+━━━━━━━━━━━━━━━━━━━━━
+🤖 *OSINT Бот* | @tracergbot"""
+        send_message(chat_id, help_text, parse_mode="Markdown")
     
     elif text == "/photo":
+        send_action(chat_id, "typing")
+        time.sleep(0.5)
         result = run_photo_search()
-        send_message(chat_id, result)
+        send_message(chat_id, result, parse_mode="Markdown")
     
     elif text == "/stats":
+        send_action(chat_id, "typing")
+        time.sleep(0.5)
         conn = sqlite3.connect('bot_database.db')
         c = conn.cursor()
         c.execute("SELECT COUNT(*) FROM searches WHERE user_id = ?", (chat_id,))
@@ -244,64 +278,69 @@ def handle_command(chat_id, text, username):
         stats = c.fetchall()
         conn.close()
         
-        stats_text = f"📊 *Ваша статистика*\n\nВсего поисков: {total}\n\n"
+        stats_text = f"📊 *Ваша статистика*\n\n━━━━━━━━━━━━━━━━━━━━━\n📈 *Всего поисков:* {total}\n━━━━━━━━━━━━━━━━━━━━━\n\n"
         for stype, count in stats:
             emoji = {"email": "📧", "nickname": "👤", "ip": "🌐", "phone": "📱", "car": "🚗"}.get(stype, "🔍")
-            stats_text += f"{emoji} {stype}: {count}\n"
-        send_message(chat_id, stats_text)
+            stats_text += f"{emoji} *{stype}:* {count}\n"
+        send_message(chat_id, stats_text, parse_mode="Markdown")
     
     elif text.startswith("/email"):
         email = text.replace("/email", "").strip()
         if email and "@" in email:
-            send_message(chat_id, f"🔍 Поиск email: {email}\n⏳ Подождите...")
+            send_action(chat_id, "typing")
+            send_message(chat_id, f"🔍 *Поиск email:* {email}\n⏳ *Подождите, ищу...*", parse_mode="Markdown")
             result = run_email_search(email)
-            send_message(chat_id, result)
+            send_message(chat_id, result, parse_mode="Markdown")
             save_search(chat_id, "email", email, result)
         else:
-            send_message(chat_id, "❌ Использование: /email email@example.com")
+            send_message(chat_id, "❌ *Использование:* `/email email@example.com`", parse_mode="Markdown")
     
     elif text.startswith("/nickname"):
         nickname = text.replace("/nickname", "").strip()
         if nickname:
-            send_message(chat_id, f"🔍 Поиск никнейма: {nickname}\n⏳ Подождите...")
+            send_action(chat_id, "typing")
+            send_message(chat_id, f"🔍 *Поиск никнейма:* {nickname}\n⏳ *Подождите, ищу...*", parse_mode="Markdown")
             result = run_nickname_search(nickname)
-            send_message(chat_id, result)
+            send_message(chat_id, result, parse_mode="Markdown")
             save_search(chat_id, "nickname", nickname, result)
         else:
-            send_message(chat_id, "❌ Использование: /nickname username")
+            send_message(chat_id, "❌ *Использование:* `/nickname username`", parse_mode="Markdown")
     
     elif text.startswith("/ip"):
         ip = text.replace("/ip", "").strip()
         if ip:
-            send_message(chat_id, f"🔍 Поиск IP: {ip}\n⏳ Подождите...")
+            send_action(chat_id, "typing")
+            send_message(chat_id, f"🌐 *Поиск IP:* {ip}\n⏳ *Подождите, ищу...*", parse_mode="Markdown")
             result = run_ip_search(ip)
-            send_message(chat_id, result)
+            send_message(chat_id, result, parse_mode="Markdown")
             save_search(chat_id, "ip", ip, result)
         else:
-            send_message(chat_id, "❌ Использование: /ip 8.8.8.8")
+            send_message(chat_id, "❌ *Использование:* `/ip 8.8.8.8`", parse_mode="Markdown")
     
     elif text.startswith("/phone"):
         phone = text.replace("/phone", "").strip()
         if phone:
-            send_message(chat_id, f"🔍 Поиск телефона: {phone}\n⏳ Подождите...")
+            send_action(chat_id, "typing")
+            send_message(chat_id, f"📱 *Поиск телефона:* {phone}\n⏳ *Подождите, ищу...*", parse_mode="Markdown")
             result = run_phone_search(phone)
-            send_message(chat_id, result)
+            send_message(chat_id, result, parse_mode="Markdown")
             save_search(chat_id, "phone", phone, result)
         else:
-            send_message(chat_id, "❌ Использование: /phone +380991234567")
+            send_message(chat_id, "❌ *Использование:* `/phone +380991234567`", parse_mode="Markdown")
     
     elif text.startswith("/car"):
         car = text.replace("/car", "").strip()
         if car:
-            send_message(chat_id, f"🔍 Поиск авто: {car}\n⏳ Подождите...")
+            send_action(chat_id, "typing")
+            send_message(chat_id, f"🚗 *Поиск авто:* {car}\n⏳ *Подождите, ищу...*", parse_mode="Markdown")
             result = run_car_search(car)
-            send_message(chat_id, result)
+            send_message(chat_id, result, parse_mode="Markdown")
             save_search(chat_id, "car", car, result)
         else:
-            send_message(chat_id, "❌ Использование: /car а123вв777")
+            send_message(chat_id, "❌ *Использование:* `/car а123вв777`", parse_mode="Markdown")
     
     else:
-        send_message(chat_id, "❌ Неизвестная команда. Используйте /help")
+        send_message(chat_id, "❌ *Неизвестная команда.* Используйте `/help`", parse_mode="Markdown")
 
 # ========== ЗАПУСК FLASK ==========
 from flask import Flask
