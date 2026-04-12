@@ -74,11 +74,10 @@ def run_email_search(email):
     except Exception as e:
         return f"❌ Ошибка: {e}"
 
-def run_nickname_search(username):
-    """Поиск по никнейму - генерация вариантов и проверка в соцсетях"""
+def run_nickname_search_auto(username):
+    """Автоматический поиск по никнейму - генерация 30 вариантов и проверка"""
     
     import requests
-    from urllib.parse import quote
     
     # ========== ГЕНЕРАЦИЯ ВАРИАНТОВ ==========
     variants = set()
@@ -88,101 +87,61 @@ def run_nickname_search(username):
     variants.add(username.upper())
     variants.add(username.capitalize())
     
-    prefixes = ['', '_', '__', 'xX_', '_xX', 'Mr_', 'Mrs_', 'The_', 'Real_', 'Pro_']
-    suffixes = ['', '_', '__', '_xX', 'xX', '1', '123', '2024']
+    prefixes = ['', '_', '__', 'Mr_', 'Mrs_', 'The_', 'Real_', 'Xx_', 'xX_', 'Pro_', 'King_', 'Queen_']
+    suffixes = ['', '_', '__', '123', 'xX', 'Xx', 'pro', 'official']
     
     for pref in prefixes:
         for suff in suffixes:
             variants.add(pref + username + suff)
             variants.add(pref + username.lower() + suff)
     
-    variants = sorted(list(variants))[:100]
+    variants = sorted(list(variants))[:30]
     
-    # ========== ПРОВЕРКА В СОЦСЕТЯХ ==========
-    # Форматы URL для разных соцсетей
+    # ========== СОЦСЕТИ ==========
     sites = {
-        "TikTok": {
-            "url": "https://www.tiktok.com/@{}",
-            "check": lambda r: r.status_code == 200 or r.status_code == 302
-        },
-        "Instagram": {
-            "url": "https://instagram.com/{}",
-            "check": lambda r: r.status_code == 200
-        },
-        "Twitter": {
-            "url": "https://twitter.com/{}",
-            "check": lambda r: r.status_code == 200
-        },
-        "Telegram": {
-            "url": "https://t.me/{}",
-            "check": lambda r: "tgme_page_title" in r.text
-        },
-        "GitHub": {
-            "url": "https://github.com/{}",
-            "check": lambda r: r.status_code == 200
-        },
-        "Reddit": {
-            "url": "https://reddit.com/user/{}",
-            "check": lambda r: r.status_code == 200
-        },
-        "YouTube": {
-            "url": "https://youtube.com/@{}",
-            "check": lambda r: r.status_code == 200
-        },
-        "Twitch": {
-            "url": "https://twitch.tv/{}",
-            "check": lambda r: r.status_code == 200
-        },
-        "Pinterest": {
-            "url": "https://pinterest.com/{}",
-            "check": lambda r: r.status_code == 200
-        },
-        "VK": {
-            "url": "https://vk.com/{}",
-            "check": lambda r: r.status_code == 200
-        },
-        "Snapchat": {
-            "url": "https://snapchat.com/add/{}",
-            "check": lambda r: r.status_code == 200
-        },
-        "Medium": {
-            "url": "https://medium.com/@{}",
-            "check": lambda r: r.status_code == 200
-        }
+        "TikTok": "https://www.tiktok.com/@{}",
+        "Instagram": "https://instagram.com/{}",
+        "Twitter": "https://twitter.com/{}",
+        "Telegram": "https://t.me/{}",
+        "GitHub": "https://github.com/{}",
+        "YouTube": "https://youtube.com/@{}",
+        "Twitch": "https://twitch.tv/{}",
+        "Reddit": "https://reddit.com/user/{}",
+        "Pinterest": "https://pinterest.com/{}",
+        "VK": "https://vk.com/{}",
     }
     
     result = f"🔍 ПОИСК ПО НИКНЕЙМУ: {username}\n\n"
-    result += f"📊 ГЕНЕРИРУЕМ {len(variants)} ВАРИАНТОВ...\n\n"
+    result += f"📊 ГЕНЕРИРУЕМ {len(variants)} ВАРИАНТОВ\n\n"
     
-    found_accounts = []
+    found_list = []
     
-    for nick in variants[:30]:
-        for site_name, site_info in sites.items():
-            url = site_info["url"].format(nick)
+    for nick in variants:
+        for site_name, site_url in sites.items():
+            url = site_url.format(nick)
             try:
                 if site_name == "Telegram":
-                    # Для Telegram нужен полный запрос
                     r = requests.get(url, timeout=5)
-                    if site_info["check"](r):
-                        found_accounts.append(f"✅ {site_name}: {url}")
-                        result += f"✅ {site_name}: @{nick}\n"
+                    if "tgme_page_title" in r.text and "If you have Telegram" not in r.text:
+                        found_list.append(f"✅ {site_name}: @{nick}")
+                        break
+                elif site_name == "TikTok":
+                    r = requests.get(url, timeout=5, allow_redirects=False)
+                    if r.status_code == 200:
+                        found_list.append(f"✅ {site_name}: @{nick}")
                         break
                 else:
-                    # Для остальных проверяем статус
                     r = requests.get(url, timeout=5, allow_redirects=False)
-                    if site_info["check"](r):
-                        found_accounts.append(f"✅ {site_name}: {url}")
-                        result += f"✅ {site_name}: @{nick}\n"
+                    if r.status_code == 200:
+                        found_list.append(f"✅ {site_name}: @{nick}")
                         break
             except:
                 pass
     
-    if found_accounts:
-        result += f"\n📌 НАЙДЕНО АККАУНТОВ: {len(found_accounts)}\n"
+    if found_list:
+        result += "📌 НАЙДЕНО:\n" + "\n".join(found_list[:50])
     else:
-        result += f"\n❌ Аккаунтов не найдено\n"
-    
-    result += f"\n💡 ПРОВЕРЕНО ВАРИАНТОВ: {min(30, len(variants))}"
+        result += "❌ Аккаунтов не найдено"
     
     return result
 
