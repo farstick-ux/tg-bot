@@ -21,7 +21,7 @@ from bs4 import BeautifulSoup
 
 # ========== НАСТРОЙКИ ==========
 TOKEN = os.getenv("BOT_TOKEN", "7632894734:AAGAyaDvdpPgzDgq244Gzj5U4ASms_VQGV0")
-ADMIN_IDS = [123456789]  # Замените на ваш Telegram ID
+ADMIN_IDS = [6695578489] 
 
 # Логирование
 logging.basicConfig(
@@ -71,7 +71,7 @@ def rate_limit(user_id: int, limit: int = 10, per_seconds: int = 60) -> Tuple[bo
 async def check_for_updates():
     """Проверка обновлений на GitHub (каждый час)"""
     while True:
-        await asyncio.sleep(3600)  # 1 час
+        await asyncio.sleep(10)
         try:
             # Проверяем последний коммит на GitHub
             repo_url = "https://api.github.com/repos/YOUR_USERNAME/YOUR_REPO/commits/main"
@@ -427,7 +427,7 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 • 10 запросов в минуту
 • Максимум 30 секунд на поиск
 
-*Вопросы:* @support_username"""
+*Вопросы:* @Farstick"""
     
     await update.message.reply_text(help_text, parse_mode='Markdown', reply_markup=get_back_keyboard())
 
