@@ -138,8 +138,8 @@ def run_nickname_search(username):
         except:
             pass
     if found:
-        return f"👤 *Никнейм:* {username}\n\n✅ *НАЙДЕНО:*\n" + "\n".join(found) f"\nДополнительно: (google dorking)\nhttps://www.google.com/search?q=inurl:{username} OR intitle:{username} OR intext:{username}"
-    return f"👤 *Никнейм:* {username}\n\n❌ *Ничего не найдено*"
+        return f"👤 *Никнейм:* {username}\n\n✅ *НАЙДЕНО:*\n" + "\n".join(found) + f"\nДополнительно: (google dorking)\nhttps://www.google.com/search?q=inurl:{username} OR intitle:{username} OR intext:{username}"
+    return f"👤 *Никнейм:* {username}\n\n❌ *Ничего не найдено*" + f"\nДополнительно: (google dorking)\nhttps://www.google.com/search?q=inurl:{username} OR intitle:{username} OR intext:{username}"
 
 def run_ip_search(ip):
     ip_pattern = re.compile(r'^(\d{1,3}\.){3}\d{1,3}$')
