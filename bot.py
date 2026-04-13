@@ -109,8 +109,8 @@ def run_email_search(email):
                 if len(site) > 3 and site.lower() not in ['email', 'mail']:
                     found_sites.append(f"✅ {site[:50]}")
         if found_sites:
-            return f"📧 *Email:* {email}\n\n✅ *НАЙДЕНО:*\n" + "\n".join(found_sites[:20])
-        return f"📧 *Email:* {email}\n\n❌ *Ничего не найдено*"
+            return f"📧 *Email:* {email}\n\n✅ *НАЙДЕНО:*\n" + "\n".join(found_sites[:20]) f"\nДополнительно: (google dorking)\nhttps//www.google.com/search?q=intitle:{email} OR intext:{email} OR inurl:{email} OR {email} filetype:xls OR filetype:txt OR filetype:pdf"
+        return f"📧 *Email:* {email}\n\n❌ *Ничего не найдено*\nДополнительно: (google dorking)\nhttps//www.google.com/search?q=intitle:{email} OR intext:{email} OR inurl:{email} OR {email} filetype:xls OR filetype:txt OR filetype:pdf"
     except Exception as e:
         return f"❌ *Ошибка:* {e}"
 
@@ -138,7 +138,7 @@ def run_nickname_search(username):
         except:
             pass
     if found:
-        return f"👤 *Никнейм:* {username}\n\n✅ *НАЙДЕНО:*\n" + "\n".join(found)
+        return f"👤 *Никнейм:* {username}\n\n✅ *НАЙДЕНО:*\n" + "\n".join(found) f"\nДополнительно: (google dorking)\ninurl:{username} OR intitle:{username} OR intext:{username}"
     return f"👤 *Никнейм:* {username}\n\n❌ *Ничего не найдено*"
 
 def run_ip_search(ip):
@@ -162,9 +162,10 @@ def run_ip_search(ip):
 def run_phone_search(phone):
     phone_clean = re.sub(r'[^0-9+]', '', phone)
     result = f"📱 *Телефон:* {phone_clean}\n\n"
-    result += f"• WhatsApp: https://wa.me/{phone_clean}\n"
-    result += f"• Telegram: https://t.me/{phone_clean}\n"
-    result += f"• Google: https://www.google.com/search?q={phone_clean}\n"
+    result += f"• WhatsApp:\n https://wa.me/{phone_clean}\n"
+    result += f"• Telegram:\n https://t.me/{phone_clean}\n"
+    result += f"• Google:\n https://www.google.com/search?q={phone_clean}\n"
+    result += f"• Дополнительно: (google dorking)\nhttps://www.google.com/search?q=телефон {phone_clean} {phone} контакт мобільний call phone filetype:xls OR filetype:txt\n"
     return result
 
 def run_car_search(plate_number):
