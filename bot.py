@@ -109,7 +109,7 @@ def run_email_search(email):
                 if len(site) > 3 and site.lower() not in ['email', 'mail']:
                     found_sites.append(f"✅ {site[:50]}")
         if found_sites:
-            return f"📧 *Email:* {email}\n\n✅ *НАЙДЕНО:*\n" + "\n".join(found_sites[:20]) f"\nДополнительно: (google dorking)\nhttps://www.google.com/search?q=intitle:{email} OR intext:{email} OR inurl:{email} OR {email} filetype:xls OR filetype:txt OR filetype:pdf"
+            return f"📧 *Email:* {email}\n\n✅ *НАЙДЕНО:*\n" + "\n".join(found_sites[:20]) + f"\nДополнительно: (google dorking)\nhttps://www.google.com/search?q=intitle:{email} OR intext:{email} OR inurl:{email} OR {email} filetype:xls OR filetype:txt OR filetype:pdf"
         return f"📧 *Email:* {email}\n\n❌ *Ничего не найдено*\nДополнительно: (google dorking)\nhttps://www.google.com/search?q=intitle:{email} OR intext:{email} OR inurl:{email} OR {email} filetype:xls OR filetype:txt OR filetype:pdf"
     except Exception as e:
         return f"❌ *Ошибка:* {e}"
