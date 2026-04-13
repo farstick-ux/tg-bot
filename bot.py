@@ -214,7 +214,7 @@ def handle_command(chat_id, text, username):
         return
     
     if text == "/start":
-        welcome = f"""🤖 *Привет, {username}!*
+        welcome = f"""🤖 *Привет!*
 
 Я *OSINT бот* для поиска информации в открытых источниках.
 
@@ -232,8 +232,7 @@ def handle_command(chat_id, text, username):
 ❓ `/help` - помощь
 
 ━━━━━━━━━━━━━━━━
-💡 *Пример:* `/email test@mail.com`
-🤖 *Версия:* 2.0 | Бесплатно"""
+💡 *Пример:* `/email test@mail.com"""
         
         send_message(chat_id, welcome, parse_mode="Markdown")
     
@@ -256,8 +255,6 @@ def handle_command(chat_id, text, username):
 ⚠️ *ОГРАНИЧЕНИЯ:*
 ━━━━━━━━━━━━━━━━
 • 10 запросов в минуту
-• Максимум 60 секунд на поиск
-
 ━━━━━━━━━━━━━━━━
 🤖 *OSINT Бот* | @tracergbot"""
         send_message(chat_id, help_text, parse_mode="Markdown")
