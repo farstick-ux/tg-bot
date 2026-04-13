@@ -214,7 +214,7 @@ def handle_command(chat_id, text, username):
         return
     
     if text == "/start":
-        welcome = f"""🤖 *Привет!*
+    welcome = """🤖 *Привет!*
 
 Я *OSINT бот* для поиска информации в открытых источниках.
 
@@ -232,9 +232,9 @@ def handle_command(chat_id, text, username):
 ❓ `/help` - помощь
 
 ━━━━━━━━━━━━━━━━
-💡 *Пример:* `/email test@mail.com"""
-        
-        send_message(chat_id, welcome, parse_mode="Markdown")
+💡 *Пример:* `/email test@mail.com`"""
+    
+    send_message(chat_id, welcome, parse_mode="Markdown")
     
     elif text == "/help":
         help_text = """❓ *ПОМОЩЬ ПО БОТУ*
