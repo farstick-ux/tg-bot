@@ -107,10 +107,10 @@ def run_email_search(email):
                 site = re.sub(r'https?://', '', site)
                 site = site.split()[0] if site.split() else site
                 if len(site) > 3 and site.lower() not in ['email', 'mail']:
-                    found_sites.append(f"✅ {site[:50]}")
+                    found_sites.append(f"✅ {site[:100]}")
         if found_sites:
-            return f"📧 *Email:* {email}\n\n✅ *НАЙДЕНО:*\n" + "\n".join(found_sites[:20]) + f"\n\nДополнительно: (google dorking)\nhttps://www.google.com/search?q=intitle:{email}+OR+intext:{email}+OR+inurl:{email}+OR+{email}+filetype:xls+OR+filetype:txt+OR+filetype:pdf"
-        return f"📧 *Email:* {email}\n\n❌ *Ничего не найдено*\nДополнительно: (google dorking)\nhttps://www.google.com/search?q=intitle:{email}+OR+intext:{email}+OR+inurl:{email}+OR+{email}+filetype:xls+OR+filetype:txt+OR+filetype:pdf"
+            return f"📧 *Email:* {email}\n\n🔎 *НАЙДЕНО:*\n" + "\n".join(found_sites[:100]) + f"\n\nДополнительно: (google dorking)\nhttps://www.google.com/search?q=intitle:{email}+OR+intext:{email}+OR+inurl:{email}+OR+{email}+filetype:xls+OR+filetype:txt+OR+filetype:pdf"
+        return f"📧 *Email:* {email}\n\n❌ *Ничего не найдено*\n\nДополнительно: (google dorking)\nhttps://www.google.com/search?q=intitle:{email}+OR+intext:{email}+OR+inurl:{email}+OR+{email}+filetype:xls+OR+filetype:txt+OR+filetype:pdf" + f"\n\nhttps://yandex.com/search/touch/?text={username}"
     except Exception as e:
         return f"❌ *Ошибка:* {e}"
 
@@ -124,6 +124,21 @@ def run_nickname_search(username):
         "YouTube": f"https://youtube.com/@{username}",
         "Twitch": f"https://twitch.tv/{username}",
         "Reddit": f"https://reddit.com/user/{username}",
+        "Pinterest": f"https://pinterest.com/{username}",
+        "Snapchat": f"https://snapchat.com/add/{username}",
+        "LinkedIn": f"https://linkedin.com/in/{username}",
+        "Facebook": f"https://facebook.com/{username}",
+        "Tumblr": f"https://{username}.tumblr.com",
+        "Medium": f"https://medium.com/@{username}",
+        "VK": f"https://vk.com/{username}",
+        "Spotify": f"https://open.spotify.com/user/{username}",
+        "Steam": f"https://steamcomunity.com/id/{username}",
+        "Discord": f"https://discord.com/users/{username}",
+        "Flickr": f"https://flickr.com/people/{username}",
+        "Behance": f"https://behance.net/{username}",
+        "Dribble": f"https://dribble.com/{username}",
+        "ProductHunt": f"https://producthunt/@{username}",
+        "GitLab": f"https://gitlab.com/{username}"
     }
     found = []
     for site_name, url in sites.items():
@@ -132,14 +147,14 @@ def run_nickname_search(username):
             if r.status_code == 200:
                 if site_name == "Telegram":
                     if "tgme_page_title" in r.text and "If you have Telegram" not in r.text:
-                        found.append(f"✅ {site_name}: {url}")
+                        found.append(f"✅ {site_name}: \n{url}")
                 else:
-                    found.append(f"✅ {site_name}: {url}")
+                    found.append(f"✅ {site_name}: \n{url}")
         except:
             pass
     if found:
-        return f"👤 *Никнейм:* {username}\n\n✅ *НАЙДЕНО:*\n" + "\n".join(found) + f"\n\nДополнительно: (google dorking)\nhttps://www.google.com/search?q=inurl:{username}+OR+intitle:{username}+OR+intext:{username}"
-    return f"👤 *Никнейм:* {username}\n\n❌ *Ничего не найдено*" + f"\n\nДополнительно: (google dorking)\nhttps://www.google.com/search?q=inurl:{username}+OR+intitle:{username}+OR+intext:{username}"
+        return f"👤 *Никнейм:* {username}\n\n✅ *НАЙДЕНО:*\n" + "\n".join(found) + f"\n\nДополнительно: (google dorking)\nhttps://www.google.com/search?q=inurl:{username}+OR+intitle:{username}+OR+intext:{username}" + f"\n\nhttps://yandex.com/search/touch/?text={username}"
+    return f"👤 *Никнейм:* {username}\n\n❌ *Ничего не найдено*" + f"\n\nДополнительно: (google dorking)\nhttps://www.google.com/search?q=inurl:{username}+OR+intitle:{username}+OR+intext:{username}" + f"\n\nhttps://yandex.com/search/touch/?text={username}"
 
 def run_ip_search(ip):
     ip_pattern = re.compile(r'^(\d{1,3}\.){3}\d{1,3}$')
@@ -194,10 +209,9 @@ def run_photo_search():
 
 🔗 *Сервисы для поиска:*
 
-1. Google Search: https://google.com
-2. Yandex Images: https://yandex.com/images/
-3. PimEyes: https://pimeyes.com
-4. Bing Visual Search: https://www.bing.com/visualsearch
+1. Yandex Images: https://yandex.com/images/
+2. PimEyes: https://pimeyes.com
+3. Bing Visual Search: https://www.bing.com/visualsearch
 
 📌 *Инструкция:*
 1. Откройте любой сервис
