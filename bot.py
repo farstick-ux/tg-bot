@@ -109,8 +109,8 @@ def run_email_search(email):
                 if len(site) > 3 and site.lower() not in ['email', 'mail']:
                     found_sites.append(f"✅ {site[:100]}")
         if found_sites:
-            return f"📧 *Email:* {email}\n\n🔎 *НАЙДЕНО:*\n" + "\n".join(found_sites[:100]) + f"\n\nДополнительно: (google dorking)\nhttps://www.google.com/search?q=intitle:{email}+OR+intext:{email}+OR+inurl:{email}+OR+{email}+filetype:xls+OR+filetype:txt+OR+filetype:pdf"
-        return f"📧 *Email:* {email}\n\n❌ *Ничего не найдено*\n\nДополнительно: (google dorking)\nhttps://www.google.com/search?q=intitle:{email}+OR+intext:{email}+OR+inurl:{email}+OR+{email}+filetype:xls+OR+filetype:txt+OR+filetype:pdf" + f"\n\nhttps://yandex.com/search/touch/?text={username}"
+            return f"📧 *Email:* {email}\n\n🔎 *НАЙДЕНО:*\n" + "\n".join(found_sites[:100]) + f"\n\nДополнительно: (google dorking)\nhttps://www.google.com/search?q=intitle:{email}+OR+intext:{email}+OR+inurl:{email}+OR+{email}+filetype:xls+OR+filetype:txt+OR+filetype:pdf" + f"\n\nhttps://yandex.com/search/touch/?text={email}"
+        return f"📧 *Email:* {email}\n\n❌ *Ничего не найдено*\n\nДополнительно: (google dorking)\nhttps://www.google.com/search?q=intitle:{email}+OR+intext:{email}+OR+inurl:{email}+OR+{email}+filetype:xls+OR+filetype:txt+OR+filetype:pdf" + f"\n\nhttps://yandex.com/search/touch/?text={email}"
     except Exception as e:
         return f"❌ *Ошибка:* {e}"
 
@@ -181,6 +181,7 @@ def run_phone_search(phone):
     result += f"• Telegram:\n https://t.me/{phone_clean}\n"
     result += f"• Google:\n https://www.google.com/search?q={phone_clean}\n"
     result += f"\n• Дополнительно: (google dorking)\nhttps://www.google.com/search?q=телефон+{phone_clean}+{phone}+контакт+мобільний+call+phone+filetype:xls+OR+filetype:txt\n"
+    result += f"• Yandex:\nhttps://yandex.com/search/touch/?text={phone}\n"
     return result
 
 def run_car_search(plate_number):
