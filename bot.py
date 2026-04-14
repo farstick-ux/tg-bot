@@ -214,8 +214,8 @@ def run_nickname_search(username):
             continue
     
     if found:
-        return f"👤 *Никнейм:* {username}\n\n✅ *НАЙДЕНО:*\n" + "\n".join(found[:30]) + f"\n\n🔍 *Google Dorking:*\nhttps://www.google.com/search?q=intitle:{username}+intext:{username}+inurl:{username}" + f"\n\nYandex:\nhttps://yandex.com/search/touch/?text={username}"
-    return f"👤 *Никнейм:* {username}\n\n❌ *Ничего не найдено*" + f"\n\n🔍 *Google Dorking:*\nhttps://www.google.com/search?q=intext:{username}+inurl:{username}+intitle:{username}" + f"\n\nYandex:\nhttps://yandex.com/search/touch/?text={username}"
+        return f"👤 *Никнейм:* {username}\n\n✅ *НАЙДЕНО:*\n" + "\n".join(found[:30]) + f"\n\n🔍 *Google Dorking:*\nhttps://www.google.com/search?q=intitle:{username}%intext:{username}%inurl:{username}" + f"\n\nYandex:\nhttps://yandex.com/search/touch/?text={username}"
+    return f"👤 *Никнейм:* {username}\n\n❌ *Ничего не найдено*" + f"\n\n🔍 *Google Dorking:*\nhttps://www.google.com/search?q=intext:{username}%inurl:{username}%intitle:{username}" + f"\n\nYandex:\nhttps://yandex.com/search/touch/?text={username}"
 
 def run_ip_search(ip):
     ip_pattern = re.compile(r'^(\d{1,3}\.){3}\d{1,3}$')
