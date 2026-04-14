@@ -109,14 +109,13 @@ def run_email_search(email):
                 if len(site) > 3 and site.lower() not in ['email', 'mail']:
                     found_sites.append(f"✅ {site[:100]}")
         if found_sites:
-            return f"📧 *Email:* {email}\n\n🔎 *НАЙДЕНО:*\n" + "\n".join(found_sites[:100]) + f"\n\nДополнительно: (google dorking)\nhttps://www.google.com/search?q=intitle:{email}+OR+intext:{email}+OR+inurl:{email}+OR+{email}+filetype:xls+OR+filetype:txt+OR+filetype:pdf" + f"\n\nhttps://yandex.com/search/touch/?text={email}"
-        return f"📧 *Email:* {email}\n\n❌ *Ничего не найдено*\n\nДополнительно: (google dorking)\nhttps://www.google.com/search?q=intitle:{email}+OR+intext:{email}+OR+inurl:{email}+OR+{email}+filetype:xls+OR+filetype:txt+OR+filetype:pdf" + f"\n\nhttps://yandex.com/search/touch/?text={email}"
+            return f"📧 *Email:* {email}\n\n🔎 *НАЙДЕНО:*\n" + "\n".join(found_sites[:100]) + f"\n\nДополнительно: (google dorking)\nhttps://www.google.com/search?q=intitle:{email}+OR+intext:{email}+OR+inurl:{email}+OR+{email}+filetype:xls+OR+filetype:txt+OR+filetype:pdf" + f"\n\nYandex:\nhttps://yandex.com/search/touch/?text={email}"
+        return f"📧 *Email:* {email}\n\n❌ *Ничего не найдено*\n\nДополнительно: (google dorking)\nhttps://www.google.com/search?q=intitle:{email}+OR+intext:{email}+OR+inurl:{email}+OR+{email}+filetype:xls+OR+filetype:txt+OR+filetype:pdf" + f"\n\nYandex:\nhttps://yandex.com/search/touch/?text={email}"
     except Exception as e:
         return f"❌ *Ошибка:* {e}"
 
 def run_nickname_search(username):
     sites = {
-        "TikTok": f"https://www.tiktok.com/@{username}",
         "Instagram": f"https://instagram.com/{username}",
         "Twitter": f"https://twitter.com/{username}",
         "Telegram": f"https://t.me/{username}",
@@ -132,29 +131,65 @@ def run_nickname_search(username):
         "Medium": f"https://medium.com/@{username}",
         "VK": f"https://vk.com/{username}",
         "Spotify": f"https://open.spotify.com/user/{username}",
-        "Steam": f"https://steamcommunity.com/id/{username}",
-        "Discord": f"https://discord.com/users/{username}",
         "Flickr": f"https://flickr.com/people/{username}",
         "Behance": f"https://behance.net/{username}",
         "Dribbble": f"https://dribbble.com/{username}",
         "ProductHunt": f"https://producthunt.com/@{username}",
-        "GitLab": f"https://gitlab.com/{username}"
+        "GitLab": f"https://gitlab.com/{username}",
+        # Проблемные сайты с отдельными проверками
+        "TikTok": f"https://www.tiktok.com/@{username}",
+        "Steam": f"https://steamcommunity.com/id/{username}",
+        "Discord": f"https://discord.com/users/{username}"
     }
+    
     found = []
+    
     for site_name, url in sites.items():
         try:
-            r = requests.get(url, timeout=5, allow_redirects=False)
+            r = requests.get(url, timeout=5, allow_redirects=True)
+            
+            # Telegram специальная проверка
+            if site_name == "Telegram":
+                if "tgme_page_title" in r.text and "If you have Telegram" not in r.text:
+                    found.append(f"✅ {site_name}: {url}")
+                continue
+            
+            # TikTok специальная проверка (ищет фразу "couldn't find")
+            if site_name == "TikTok":
+                if r.status_code == 200 and "couldn't find" not in r.text.lower():
+                    found.append(f"✅ {site_name}: {url}")
+                continue
+            
+            # Steam специальная проверка (ищет "The specified profile could not be found")
+            if site_name == "Steam":
+                if "The specified profile could not be found" not in r.text:
+                    found.append(f"✅ {site_name}: {url}")
+                continue
+            
+            # Discord специальная проверка (ищет "Sorry, nobody")
+            if site_name == "Discord":
+                if "Sorry, nobody" not in r.text and "Not Found" not in r.text:
+                    found.append(f"✅ {site_name}: {url}")
+                continue
+            
+            # Instagram проверка на редирект
+            if site_name == "Instagram":
+                if r.status_code == 200 and "Page Not Found" not in r.text:
+                    found.append(f"✅ {site_name}: {url}")
+                continue
+            
+            # Обычные сайты
             if r.status_code == 200:
-                if site_name == "Telegram":
-                    if "tgme_page_title" in r.text and "If you have Telegram" not in r.text:
-                        found.append(f"✅ {site_name}: \n{url}")
-                else:
-                    found.append(f"✅ {site_name}: \n{url}")
-        except:
-            pass
+                found.append(f"✅ {site_name}: {url}")
+                
+        except requests.Timeout:
+            continue
+        except Exception:
+            continue
+    
     if found:
-        return f"👤 *Никнейм:* {username}\n\n✅ *НАЙДЕНО:*\n" + "\n".join(found) + f"\n\nДополнительно: (google dorking)\nhttps://www.google.com/search?q=inurl:{username}+OR+intitle:{username}+OR+intext:{username}" + f"\n\nhttps://yandex.com/search/touch/?text={username}"
-    return f"👤 *Никнейм:* {username}\n\n❌ *Ничего не найдено*" + f"\n\nДополнительно: (google dorking)\nhttps://www.google.com/search?q=inurl:{username}+OR+intitle:{username}+OR+intext:{username}" + f"\n\nhttps://yandex.com/search/touch/?text={username}"
+        return f"👤 *Никнейм:* {username}\n\n✅ *НАЙДЕНО:*\n" + "\n".join(found) + f"\n\n🔍 *Google Dorking:*\nhttps://www.google.com/search?q=%22{username}%22" + f"\n\nYandex:\nhttps://yandex.com/search/touch/?text={username}"
+    return f"👤 *Никнейм:* {username}\n\n❌ *Ничего не найдено*" + f"\n\n🔍 *Google Dorking:*\nhttps://www.google.com/search?q=%22{username}%22" + f"\n\nYandex:\nhttps://yandex.com/search/touch/?text={username}"
 
 def run_ip_search(ip):
     ip_pattern = re.compile(r'^(\d{1,3}\.){3}\d{1,3}$')
