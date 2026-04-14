@@ -116,6 +116,7 @@ def run_email_search(email):
 
 def run_nickname_search(username):
     sites = {
+        "TikTok": f"https://www.tiktok.com/@{username}",
         "Instagram": f"https://instagram.com/{username}",
         "Twitter": f"https://twitter.com/{username}",
         "Telegram": f"https://t.me/{username}",
@@ -131,15 +132,13 @@ def run_nickname_search(username):
         "Medium": f"https://medium.com/@{username}",
         "VK": f"https://vk.com/{username}",
         "Spotify": f"https://open.spotify.com/user/{username}",
+        "Steam": f"https://steamcommunity.com/id/{username}",
+        "Discord": f"https://discord.com/users/{username}",
         "Flickr": f"https://flickr.com/people/{username}",
         "Behance": f"https://behance.net/{username}",
         "Dribbble": f"https://dribbble.com/{username}",
         "ProductHunt": f"https://producthunt.com/@{username}",
-        "GitLab": f"https://gitlab.com/{username}",
-        # Проблемные сайты с отдельными проверками
-        "TikTok": f"https://www.tiktok.com/@{username}",
-        "Steam": f"https://steamcommunity.com/id/{username}",
-        "Discord": f"https://discord.com/users/{username}"
+        "GitLab": f"https://gitlab.com/{username}"
     }
     
     found = []
@@ -147,39 +146,73 @@ def run_nickname_search(username):
     for site_name, url in sites.items():
         try:
             r = requests.get(url, timeout=5, allow_redirects=True)
+            text = r.text.lower()
             
-            # Telegram специальная проверка
+            # Telegram
             if site_name == "Telegram":
-                if "tgme_page_title" in r.text and "If you have Telegram" not in r.text:
+                if "tgme_page_title" in r.text and "if you have telegram" not in text:
                     found.append(f"✅ {site_name}: {url}")
                 continue
             
-            # TikTok специальная проверка (ищет фразу "couldn't find")
+            # TikTok
             if site_name == "TikTok":
-                if r.status_code == 200 and "couldn't find" not in r.text.lower():
+                if "couldn't find" not in text and "page not found" not in text:
                     found.append(f"✅ {site_name}: {url}")
                 continue
             
-            # Steam специальная проверка (ищет "The specified profile could not be found")
-            if site_name == "Steam":
-                if "The specified profile could not be found" not in r.text:
-                    found.append(f"✅ {site_name}: {url}")
-                continue
-            
-            # Discord специальная проверка (ищет "Sorry, nobody")
-            if site_name == "Discord":
-                if "Sorry, nobody" not in r.text and "Not Found" not in r.text:
-                    found.append(f"✅ {site_name}: {url}")
-                continue
-            
-            # Instagram проверка на редирект
+            # Instagram
             if site_name == "Instagram":
-                if r.status_code == 200 and "Page Not Found" not in r.text:
+                if "page not found" not in text and "sorry, this page isn't available" not in text:
                     found.append(f"✅ {site_name}: {url}")
                 continue
             
-            # Обычные сайты
+            # Twitter
+            if site_name == "Twitter":
+                if "this account doesn’t exist" not in text and "not found" not in text:
+                    found.append(f"✅ {site_name}: {url}")
+                continue
+            
+            # Facebook
+            if site_name == "Facebook":
+                if "this content isn't available" not in text and "page not found" not in text:
+                    found.append(f"✅ {site_name}: {url}")
+                continue
+            
+            # Discord
+            if site_name == "Discord":
+                if "sorry, nobody" not in text and "not found" not in text:
+                    found.append(f"✅ {site_name}: {url}")
+                continue
+            
+            # Pinterest
+            if site_name == "Pinterest":
+                if "page not found" not in text and "we couldn't find that page" not in text:
+                    found.append(f"✅ {site_name}: {url}")
+                continue
+            
+            # Twitch
+            if site_name == "Twitch":
+                if "sorry. unless you’ve got a time machine" not in text:
+                    found.append(f"✅ {site_name}: {url}")
+                continue
+            
+            # Reddit
+            if site_name == "Reddit":
+                if "page not found" not in text and "there doesn't seem to be anything here" not in text:
+                    found.append(f"✅ {site_name}: {url}")
+                continue
+            
+            # Steam
+            if site_name == "Steam":
+                if "the specified profile could not be found" not in text:
+                    found.append(f"✅ {site_name}: {url}")
+                continue
+            
+            # Обычные сайты (GitHub, YouTube, VK и т.д.)
             if r.status_code == 200:
+                # Дополнительная проверка для LinkedIn
+                if site_name == "LinkedIn" and "page not found" in text:
+                    continue
                 found.append(f"✅ {site_name}: {url}")
                 
         except requests.Timeout:
@@ -188,8 +221,8 @@ def run_nickname_search(username):
             continue
     
     if found:
-        return f"👤 *Никнейм:* {username}\n\n✅ *НАЙДЕНО:*\n" + "\n".join(found) + f"\n\n🔍 *Google Dorking:*\nhttps://www.google.com/search?q=%22{username}%22" + f"\n\nYandex:\nhttps://yandex.com/search/touch/?text={username}"
-    return f"👤 *Никнейм:* {username}\n\n❌ *Ничего не найдено*" + f"\n\n🔍 *Google Dorking:*\nhttps://www.google.com/search?q=%22{username}%22" + f"\n\nYandex:\nhttps://yandex.com/search/touch/?text={username}"
+        return f"👤 *Никнейм:* {username}\n\n✅ *НАЙДЕНО:*\n" + "\n".join(found[:30]) + f"\n\n🔍 *Google Dorking:*\nhttps://www.google.com/search?q=intitle:{username} intext:{username} inurl:{username}" + f"\n\nYandex:\nhttps://yandex.com/search/touch/?text={username}"
+    return f"👤 *Никнейм:* {username}\n\n❌ *Ничего не найдено*" + f"\n\n🔍 *Google Dorking:*\nhttps://www.google.com/search?q=intext:{username} inurl:{username} intitle:{username}" + f"\n\nYandex:\nhttps://yandex.com/search/touch/?text={username}"
 
 def run_ip_search(ip):
     ip_pattern = re.compile(r'^(\d{1,3}\.){3}\d{1,3}$')
