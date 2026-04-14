@@ -109,8 +109,8 @@ def run_email_search(email):
                 if len(site) > 3 and site.lower() not in ['email', 'mail']:
                     found_sites.append(f"✅ {site[:100]}")
         if found_sites:
-            return f"📧 *Email:* {email}\n\n🔎 *НАЙДЕНО:*\n" + "\n".join(found_sites[:100]) + f"\n\nДополнительно: (google dorking)\nhttps://www.google.com/search?q=intitle:{email}+OR+intext:{email}+OR+inurl:{email}+OR+{email}+filetype:xls+OR+filetype:txt+OR+filetype:pdf" + f"\n\nYandex:\nhttps://yandex.com/search/touch/?text={email}"
-        return f"📧 *Email:* {email}\n\n❌ *Ничего не найдено*\n\nДополнительно: (google dorking)\nhttps://www.google.com/search?q=intitle:{email}+OR+intext:{email}+OR+inurl:{email}+OR+{email}+filetype:xls+OR+filetype:txt+OR+filetype:pdf" + f"\n\nYandex:\nhttps://yandex.com/search/touch/?text={email}"
+            return f"📧 *Email:* {email}\n\n🔎 *НАЙДЕНО:*\n" + "\n".join(found_sites[:100]) + f"\n\nДополнительно: (google dorking)\nhttps://www.google.com/search?q={email}+filetype:xls+OR+filetype:txt+OR+filetype:pdf" + f"\n\nYandex:\nhttps://yandex.com/search/touch/?text={email}"
+        return f"📧 *Email:* {email}\n\n❌ *Ничего не найдено*\n\nДополнительно: (google dorking)\nhttps://www.google.com/search?q={email}+filetype:xls+OR+filetype:txt+OR+filetype:pdf" + f"\n\nYandex:\nhttps://yandex.com/search/touch/?text={email}"
     except Exception as e:
         return f"❌ *Ошибка:* {e}"
 
@@ -214,8 +214,8 @@ def run_nickname_search(username):
             continue
     
     if found:
-        return f"👤 *Никнейм:* {username}\n\n✅ *НАЙДЕНО:*\n" + "\n".join(found[:30]) + f"\n\n🔍 *Google Dorking:*\nhttps://www.google.com/search?q=intitle:{username}%intext:{username}%inurl:{username}" + f"\n\nYandex:\nhttps://yandex.com/search/touch/?text={username}"
-    return f"👤 *Никнейм:* {username}\n\n❌ *Ничего не найдено*" + f"\n\n🔍 *Google Dorking:*\nhttps://www.google.com/search?q=intext:{username}%inurl:{username}%intitle:{username}" + f"\n\nYandex:\nhttps://yandex.com/search/touch/?text={username}"
+        return f"👤 *Никнейм:* {username}\n\n✅ *НАЙДЕНО:*\n" + "\n".join(found[:30]) + f"\n\n🔍 *Google Dorking:*\nhttps://www.google.com/search?q=intext:{username}" + f"\n\nYandex:\nhttps://yandex.com/search/touch/?text={username}"
+    return f"👤 *Никнейм:* {username}\n\n❌ *Ничего не найдено*" + f"\n\n🔍 *Google Dorking:*\nhttps://www.google.com/search?q=intext:{username}" + f"\n\nYandex:\nhttps://yandex.com/search/touch/?text={username}"
 
 def run_ip_search(ip):
     ip_pattern = re.compile(r'^(\d{1,3}\.){3}\d{1,3}$')
