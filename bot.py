@@ -132,12 +132,12 @@ def run_nickname_search(username):
         "Medium": f"https://medium.com/@{username}",
         "VK": f"https://vk.com/{username}",
         "Spotify": f"https://open.spotify.com/user/{username}",
-        "Steam": f"https://steamcomunity.com/id/{username}",
+        "Steam": f"https://steamcommunity.com/id/{username}",
         "Discord": f"https://discord.com/users/{username}",
         "Flickr": f"https://flickr.com/people/{username}",
         "Behance": f"https://behance.net/{username}",
-        "Dribble": f"https://dribble.com/{username}",
-        "ProductHunt": f"https://producthunt/@{username}",
+        "Dribbble": f"https://dribbble.com/{username}",
+        "ProductHunt": f"https://producthunt.com/@{username}",
         "GitLab": f"https://gitlab.com/{username}"
     }
     found = []
