@@ -140,7 +140,7 @@ def run_email_search(email):
     except Exception as e:
         return f"❌ *Ошибка:* {e}"
 
-# ========== ИСПРАВЛЕННАЯ ФУНКЦИЯ ПОИСКА ПО НИКНЕЙМУ ==========
+# ========== ИСПРАВЛЕННАЯ ФУНКЦИЯ ПОИСКА ПО НИКНЕЙМУ (TikTok и другие) ==========
 def run_nickname_search(username):
     sites = {
         "TikTok": f"https://www.tiktok.com/@{username}",
@@ -165,28 +165,36 @@ def run_nickname_search(username):
     
     for site_name, url in sites.items():
         try:
-            # Для всех запросов используем allow_redirects=True, чтобы получить финальную страницу
-            r = requests.get(url, timeout=8, allow_redirects=True)
+            # Увеличим таймаут и разрешим редиректы
+            r = requests.get(url, timeout=10, allow_redirects=True)
             text = r.text.lower()
             status = r.status_code
             
-            # ----- СПЕЦИАЛЬНЫЕ ПРОВЕРКИ ДЛЯ КАЖДОГО САЙТА -----
             exists = False
+            
+            # ----- СПЕЦИАЛЬНЫЕ ПРОВЕРКИ -----
             
             # Telegram
             if site_name == "Telegram":
                 if "tgme_page_title" in r.text and "if you have telegram" not in text:
                     exists = True
             
-            # TikTok (исправлено: проверяем наличие признаков профиля)
+            # TikTok (улучшено)
             elif site_name == "TikTok":
-                # Признаки существующего профиля: наличие followers/following или мета-тегов с описанием
-                if (status == 200 and 
-                    "couldn't find" not in text and 
-                    "page not found" not in text and
-                    "something went wrong" not in text and
-                    ("followers" in text or "подписчики" in text or "following" in text or "follow" in text)):
-                    exists = True
+                # Проверяем, что это не страница с ошибкой
+                if status == 200:
+                    # Типичные признаки отсутствия профиля
+                    error_signs = ["couldn't find", "page not found", "something went wrong", 
+                                   "this account doesn't exist", "user not found", "not found"]
+                    # Признаки существования профиля (присутствуют на странице)
+                    success_signs = ["followers", "following", "подписчики", "подписки", "likes", "лайки"]
+                    
+                    has_error = any(sign in text for sign in error_signs)
+                    has_success = any(sign in text for sign in success_signs)
+                    
+                    # Если нет явных ошибок И (есть признаки профиля ИЛИ нет явных признаков ошибки)
+                    if not has_error and (has_success or len(text) > 5000):
+                        exists = True
             
             # YouTube
             elif site_name == "YouTube":
@@ -208,7 +216,7 @@ def run_nickname_search(username):
                 if "sorry, nobody" not in text and "not found" not in text:
                     exists = True
             
-            # Instagram, Twitter, Facebook, Pinterest, Twitch, Reddit, LinkedIn (общие проверки)
+            # Instagram, Twitter, Facebook, Pinterest, Twitch, Reddit, LinkedIn
             elif site_name in ["Instagram", "Twitter", "Facebook", "Pinterest", "Twitch", "Reddit", "LinkedIn"]:
                 error_phrases = ["page not found", "sorry, this page isn't available", 
                                  "this account doesn't exist", "this content isn't available",
@@ -217,7 +225,7 @@ def run_nickname_search(username):
                 if status == 200 and not any(phrase in text for phrase in error_phrases):
                     exists = True
             
-            # Остальные сайты (GitHub, Tumblr, Medium, Spotify, Flickr, Behance, Dribbble, ProductHunt, GitLab, Snapchat)
+            # GitHub, Tumblr, Medium, Spotify, Flickr, Behance, Dribbble, ProductHunt, GitLab, Snapchat
             else:
                 if status == 200:
                     exists = True
