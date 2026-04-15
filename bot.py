@@ -1,4 +1,3 @@
-import pydrive
 import requests
 import subprocess
 import time
@@ -120,6 +119,20 @@ def get_simple_stats():
     for i, (user_id, last_active) in enumerate(users, 1):
         result += f"\n{i}. `{user_id}` - последний раз: {last_active[:19]}"
     return result
+
+# ========== БЭКАП В TELEGRAM ==========
+def backup_to_telegram(chat_id):
+    """Отправляет файл базы данных админу"""
+    try:
+        if os.path.exists('bot_database.db'):
+            files = {'document': open('bot_database.db', 'rb')}
+            requests.post(URL + "sendDocument", 
+                         data={'chat_id': chat_id},
+                         files=files)
+            return True
+    except Exception as e:
+        print(f"Ошибка бэкапа: {e}")
+    return False
 
 # ========== ФУНКЦИИ ПОИСКА ==========
 
@@ -358,6 +371,14 @@ def handle_command(chat_id, text, username):
         send_message(chat_id, result, parse_mode="Markdown")
         return
     
+    # Админ команда /backup (создание бэкапа)
+    if chat_id in ADMIN_IDS and text == "/backup":
+        if backup_to_telegram(chat_id):
+            send_message(chat_id, "✅ Бэкап базы данных отправлен!")
+        else:
+            send_message(chat_id, "❌ Ошибка: файл базы не найден")
+        return
+    
     if text == "/start":
         welcome = """🤖 *Привет!*
 
@@ -518,6 +539,25 @@ while True:
             chat_id = update["message"]["chat"]["id"]
             text = update["message"].get("text", "")
             username = update["message"].get("from", {}).get("first_name", "Пользователь")
+            
+            # Обработка входящих файлов (восстановление базы)
+            if "document" in update["message"]:
+                doc = update["message"]["document"]
+                file_name = doc.get("file_name", "")
+                
+                # Проверяем что это файл базы данных
+                if file_name == "bot_database.db" and chat_id in ADMIN_IDS:
+                    file_id = doc["file_id"]
+                    file_info = requests.get(URL + "getFile", params={"file_id": file_id}).json()
+                    file_path = file_info["result"]["file_path"]
+                    file_url = f"https://api.telegram.org/file/bot{TOKEN}/{file_path}"
+                    
+                    response = requests.get(file_url)
+                    with open("bot_database.db", "wb") as f:
+                        f.write(response.content)
+                    
+                    send_message(chat_id, "✅ База данных восстановлена из бэкапа!")
+                    continue
             
             # Регистрация пользователя
             conn = sqlite3.connect('bot_database.db')
