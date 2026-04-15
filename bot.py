@@ -9,6 +9,7 @@ from datetime import datetime
 from collections import defaultdict
 
 TOKEN = os.getenv("BOT_TOKEN")
+ADMIN_IDS = [6695578489]
 
 if not TOKEN:
     print("❌ Ошибка: BOT_TOKEN не найден в переменных окружения!")
@@ -48,6 +49,11 @@ def rate_limit(user_id, limit=1, per_seconds=60):
         return False, wait_time
     user_commands[user_id].append(now)
     return True, 0
+
+# Админ команда
+    if chat_id in ADMIN_IDS and text == "/users":
+        send_message(chat_id, get_simple_stats(), parse_mode="Markdown")
+        return
 
 # ========== KEEP ALIVE ==========
 def keep_alive():
@@ -95,7 +101,50 @@ def get_updates(offset=None):
     except:
         return {"result": []}
 
-# ========== ФУНКЦИИ ПОИСКА ==========
+# ========== ФУНКЦИИ ПОИСКА ========
+
+def get_simple_stats():
+    """Простая статистика: пользователи и их ники"""
+    conn = sqlite3.connect('bot_database.db')
+    c = conn.cursor()
+    
+    # Всего пользователей
+    c.execute("SELECT COUNT(*) FROM users")
+    total_users = c.fetchone()[0]
+    
+    # Активные сегодня
+    today = datetime.now().strftime("%Y-%m-%d")
+    c.execute("SELECT COUNT(*) FROM users WHERE last_active LIKE ?", (f"{today}%",))
+    active_today = c.fetchone()[0]
+    
+    # Все пользователи с их никами (user_id)
+    c.execute("SELECT user_id, last_active FROM users ORDER BY last_active DESC")
+    users = c.fetchall()
+    
+    conn.close()
+    
+    result = f"""👥 *СТАТИСТИКА ПОЛЬЗОВАТЕЛЕЙ*
+
+━━━━━━━━━━━━━━━━
+📊 *ВСЕГО:* {total_users} пользователей
+📈 *АКТИВНЫ СЕГОДНЯ:* {active_today}
+━━━━━━━━━━━━━━━━
+
+📋 *СПИСОК ПОЛЬЗОВАТЕЛЕЙ:*
+"""
+    
+    for i, (user_id, last_active) in enumerate(users, 1):
+        result += f"\n{i}. `{user_id}` - последний раз: {last_active[:19]}"
+    
+    return result
+
+    # Проверка на админа
+    if chat_id in ADMIN_IDS:
+        if text == "/users":
+            result = get_simple_stats()
+            send_message(chat_id, result, parse_mode="Markdown")
+            return
+
 def run_email_search(email):
     try:
         result = subprocess.run(["holehe", email, "--no-color"], capture_output=True, text=True, timeout=60)
