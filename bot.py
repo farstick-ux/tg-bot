@@ -5,11 +5,13 @@ import re
 import threading
 import os
 import sqlite3
-from datetime import datetime
+from datetime import datetime, timedelta
 from collections import defaultdict
+from flask import Flask
+import threading as th
 
 TOKEN = os.getenv("BOT_TOKEN")
-ADMIN_IDS = [6695578489]
+ADMIN_IDS = [6695578489]  # Твой ID
 
 if not TOKEN:
     print("❌ Ошибка: BOT_TOKEN не найден в переменных окружения!")
@@ -24,6 +26,8 @@ def init_db():
                  (user_id INT, type TEXT, query TEXT, result TEXT, date TEXT)''')
     c.execute('''CREATE TABLE IF NOT EXISTS users
                  (user_id INT PRIMARY KEY, first_seen TEXT, last_active TEXT)''')
+    c.execute('''CREATE TABLE IF NOT EXISTS premium
+                 (user_id INT PRIMARY KEY, until_date TEXT)''')
     conn.commit()
     conn.close()
 
@@ -37,11 +41,53 @@ def save_search(user_id, search_type, query, result):
     conn.commit()
     conn.close()
 
+# ========== ПРЕМИУМ ФУНКЦИИ ==========
+def is_premium(user_id):
+    conn = sqlite3.connect('bot_database.db')
+    c = conn.cursor()
+    c.execute("SELECT until_date FROM premium WHERE user_id = ?", (user_id,))
+    result = c.fetchone()
+    conn.close()
+    if result:
+        if result[0] == "forever":
+            return True
+        return datetime.now().isoformat() < result[0]
+    return False
+
+def add_premium(user_id, days=30, forever=False):
+    conn = sqlite3.connect('bot_database.db')
+    c = conn.cursor()
+    if forever:
+        until = "forever"
+    else:
+        until = (datetime.now() + timedelta(days=days)).isoformat()
+    c.execute("INSERT OR REPLACE INTO premium VALUES (?, ?)", (user_id, until))
+    conn.commit()
+    conn.close()
+
 # ========== RATE LIMITING ==========
 user_commands = defaultdict(list)
+daily_requests = defaultdict(int)
+last_reset = datetime.now().date()
 
-def rate_limit(user_id, limit=1, per_seconds=60):
+def check_daily_limit(user_id):
+    global last_reset
+    today = datetime.now().date()
+    if today != last_reset:
+        daily_requests.clear()
+        last_reset = today
+    if is_premium(user_id):
+        return True
+    return daily_requests[user_id] < 30
+
+def increment_daily(user_id):
+    if not is_premium(user_id):
+        daily_requests[user_id] += 1
+
+def rate_limit(user_id):
     now = time.time()
+    limit = 10 if is_premium(user_id) else 1
+    per_seconds = 60
     user_commands[user_id] = [t for t in user_commands[user_id] if now - t < per_seconds]
     if len(user_commands[user_id]) >= limit:
         oldest = min(user_commands[user_id])
@@ -70,12 +116,13 @@ def send_action(chat_id, action="typing"):
     except:
         pass
 
-def send_message(chat_id, text, parse_mode=None):
+def send_message(chat_id, text, parse_mode=None, reply_markup=None):
     try:
         data = {"chat_id": chat_id, "text": text}
         if parse_mode:
             data["parse_mode"] = parse_mode
-        
+        if reply_markup:
+            data["reply_markup"] = reply_markup
         if len(text) > 4000:
             for i in range(0, len(text), 4000):
                 data["text"] = text[i:i+4000]
@@ -95,7 +142,7 @@ def get_updates(offset=None):
     except:
         return {"result": []}
 
-# ========== АДМИН ФУНКЦИЯ СТАТИСТИКИ ==========
+# ========== АДМИН СТАТИСТИКА ==========
 def get_simple_stats():
     conn = sqlite3.connect('bot_database.db')
     c = conn.cursor()
@@ -120,9 +167,8 @@ def get_simple_stats():
         result += f"\n{i}. `{user_id}` - последний раз: {last_active[:19]}"
     return result
 
-# ========== БЭКАП В TELEGRAM ==========
+# ========== БЭКАП ==========
 def backup_to_telegram(chat_id):
-    """Отправляет файл базы данных админу"""
     try:
         if os.path.exists('bot_database.db'):
             files = {'document': open('bot_database.db', 'rb')}
@@ -130,12 +176,11 @@ def backup_to_telegram(chat_id):
                          data={'chat_id': chat_id},
                          files=files)
             return True
-    except Exception as e:
-        print(f"Ошибка бэкапа: {e}")
+    except:
+        pass
     return False
 
 # ========== ФУНКЦИИ ПОИСКА ==========
-
 def run_email_search(email):
     try:
         result = subprocess.run(["holehe", email, "--no-color"], capture_output=True, text=True, timeout=60)
@@ -154,7 +199,6 @@ def run_email_search(email):
     except Exception as e:
         return f"❌ *Ошибка:* {e}"
 
-# ========== ИСПРАВЛЕННАЯ ФУНКЦИЯ ПОИСКА ПО НИКНЕЙМУ (TikTok и другие) ==========
 def run_nickname_search(username):
     sites = {
         "TikTok": f"https://www.tiktok.com/@{username}",
@@ -174,108 +218,65 @@ def run_nickname_search(username):
         "ProductHunt": f"https://producthunt.com/@{username}",
         "GitLab": f"https://gitlab.com/{username}"
     }
-    
     found = []
-    
     for site_name, url in sites.items():
         try:
-            # Увеличим таймаут и разрешим редиректы
             r = requests.get(url, timeout=10, allow_redirects=True)
             text = r.text.lower()
             status = r.status_code
-            
             exists = False
-            
-            # ----- СПЕЦИАЛЬНЫЕ ПРОВЕРКИ -----
-            
-            # Telegram
             if site_name == "Telegram":
                 if "tgme_page_title" in r.text and "if you have telegram" not in text:
                     exists = True
-            
-            # TikTok (улучшено)
             elif site_name == "TikTok":
-                # Проверяем, что это не страница с ошибкой
                 if status == 200:
-                    # Типичные признаки отсутствия профиля
-                    error_signs = ["couldn't find", "page not found", "something went wrong", 
-                                   "this account doesn't exist", "user not found", "not found"]
-                    # Признаки существования профиля (присутствуют на странице)
+                    error_signs = ["couldn't find", "page not found", "something went wrong", "this account doesn't exist", "user not found", "not found"]
                     success_signs = ["followers", "following", "подписчики", "подписки", "likes", "лайки"]
-                    
                     has_error = any(sign in text for sign in error_signs)
                     has_success = any(sign in text for sign in success_signs)
-                    
-                    # Если нет явных ошибок И (есть признаки профиля ИЛИ нет явных признаков ошибки)
                     if not has_error and (has_success or len(text) > 5000):
                         exists = True
-            
-            # YouTube
             elif site_name == "YouTube":
                 if status == 200 and "this channel does not exist" not in text and "not found" not in text:
                     exists = True
-            
-            # VK
             elif site_name == "VK":
                 if status == 200 and "пользователь не найден" not in text and "user not found" not in text:
                     exists = True
-            
-            # Steam
             elif site_name == "Steam":
                 if "the specified profile could not be found" not in text:
                     exists = True
-            
-            # Discord
             elif site_name == "Discord":
                 if "sorry, nobody" not in text and "not found" not in text:
                     exists = True
-            
-            # Instagram, Twitter, Facebook, Pinterest, Twitch, Reddit, LinkedIn
             elif site_name in ["Instagram", "Twitter", "Facebook", "Pinterest", "Twitch", "Reddit", "LinkedIn"]:
-                error_phrases = ["page not found", "sorry, this page isn't available", 
-                                 "this account doesn't exist", "this content isn't available",
-                                 "we couldn't find that page", "sorry. unless you've got a time machine",
-                                 "there doesn't seem to be anything here", "user not found"]
+                error_phrases = ["page not found", "sorry, this page isn't available", "this account doesn't exist", "this content isn't available", "we couldn't find that page", "sorry. unless you've got a time machine", "there doesn't seem to be anything here", "user not found"]
                 if status == 200 and not any(phrase in text for phrase in error_phrases):
                     exists = True
-            
-            # GitHub, Tumblr, Medium, Spotify, Flickr, Behance, Dribbble, ProductHunt, GitLab, Snapchat
             else:
                 if status == 200:
                     exists = True
-            
             if exists:
                 found.append(f"✅ {site_name}: {url}")
-                
-        except requests.Timeout:
+        except:
             continue
-        except Exception:
-            continue
-    
     if found:
         return f"👤 *Никнейм:* {username}\n\n✅ *НАЙДЕНО:*\n" + "\n".join(found[:30]) + f"\n\n🔍 *Google Dorking:*\nhttps://www.google.com/search?q=intext:{username}" + f"\n\nYandex:\nhttps://yandex.com/search/touch/?text={username}"
     return f"👤 *Никнейм:* {username}\n\n❌ *Ничего не найдено*" + f"\n\n🔍 *Google Dorking:*\nhttps://www.google.com/search?q=intext:{username}" + f"\n\nYandex:\nhttps://yandex.com/search/touch/?text={username}"
 
 def run_ip_search(ip):
-    """Расширенный поиск по IP с картами"""
     ip_pattern = re.compile(r'^(\d{1,3}\.){3}\d{1,3}$')
     if not ip_pattern.match(ip):
         return "❌ *Неверный формат IP-адреса*"
-    
     try:
         response = requests.get(f"http://ip-api.com/json/{ip}", timeout=10)
         data = response.json()
-        
         if data.get('status') != 'success':
             return f"❌ *Не удалось найти IP* {ip}"
-        
         lat = data.get('lat', 0)
         lon = data.get('lon', 0)
-        
         google_maps = f"https://www.google.com/maps?q={lat},{lon}"
         openstreetmap = f"https://www.openstreetmap.org/?mlat={lat}&mlon={lon}&zoom=10"
         yandex_maps = f"https://yandex.com/maps/?pt={lon},{lat}&z=10"
-        
         result = f"""🌐 *IP:* {ip}
 
 ━━━━━━━━━━━━━━━━
@@ -305,9 +306,7 @@ def run_ip_search(ip):
 🕵️ *ДОПОЛНИТЕЛЬНО*
 ━━━━━━━━━━━━━━━━
 • Временная зона: {data.get('timezone', 'Неизвестно')}"""
-        
         return result
-        
     except Exception as e:
         return f"❌ *Ошибка:* {e}"
 
@@ -324,7 +323,6 @@ def run_phone_search(phone):
 def run_car_search(plate_number):
     plate_clean = re.sub(r'[^A-Za-z0-9]', '', plate_number).upper()
     result = f"🚗 *Номер авто:* {plate_clean}\n\n"
-    
     if re.match(r'^[A-Z]{1}\d{3}[A-Z]{2}\d{2,3}$', plate_clean):
         result += "🇷🇺 *РОССИЯ:*\n"
         result += f"• ГИБДД: https://xn--90adear.xn--p1ai/check/auto/{plate_clean}\n"
@@ -337,7 +335,6 @@ def run_car_search(plate_number):
         result += f"• E-Gov: https://egov.kz/cms/ru/services/transport/check_vehicle_auto/{plate_clean}\n"
     else:
         result += "🌍 *МЕЖДУНАРОДНЫЙ ПОИСК:*\n"
-    
     result += f"\n🔍 Google: https://www.google.com/search?q={plate_clean}+номер+авто\n"
     result += f"🔍 Avito: https://www.avito.ru/all?q={plate_clean}\n"
     return result
@@ -359,26 +356,51 @@ def run_photo_search():
 
 # ========== КОМАНДЫ ==========
 def handle_command(chat_id, text, username):
-    # Rate limiting
+    # Дневной лимит
+    if not check_daily_limit(chat_id):
+        send_message(chat_id, "❌ *Лимит 30 запросов в день исчерпан!*\n💎 Купите Premium: `/buy`", parse_mode="Markdown")
+        return
+    
+    # Rate limit
     allowed, wait_time = rate_limit(chat_id)
     if not allowed:
         send_message(chat_id, f"⏳ *Слишком много запросов!* Подождите {wait_time} секунд.", parse_mode="Markdown")
         return
-    
-    # Админ команда /users
-    if chat_id in ADMIN_IDS and text == "/users":
-        result = get_simple_stats()
-        send_message(chat_id, result, parse_mode="Markdown")
-        return
-    
-    # Админ команда /backup (создание бэкапа)
-    if chat_id in ADMIN_IDS and text == "/backup":
-        if backup_to_telegram(chat_id):
-            send_message(chat_id, "✅ Бэкап базы данных отправлен!")
-        else:
-            send_message(chat_id, "❌ Ошибка: файл базы не найден")
-        return
-    
+
+    # --- АДМИН КОМАНДЫ ---
+    if chat_id in ADMIN_IDS:
+        if text == "/users":
+            result = get_simple_stats()
+            send_message(chat_id, result, parse_mode="Markdown")
+            return
+        if text == "/backup":
+            if backup_to_telegram(chat_id):
+                send_message(chat_id, "✅ Бэкап отправлен!")
+            else:
+                send_message(chat_id, "❌ Ошибка бэкапа")
+            return
+        if text.startswith("/activate_month"):
+            parts = text.split()
+            if len(parts) >= 2:
+                user_id = int(parts[1])
+                add_premium(user_id, days=30)
+                send_message(chat_id, f"✅ Премиум на МЕСЯЦ активирован для `{user_id}`")
+                send_message(user_id, "⭐ Вам активирован Premium на 1 месяц!\n\n✅ 10 запросов в минуту\n✅ Безлимит запросов в день")
+            else:
+                send_message(chat_id, "❌ Использование: `/activate_month 123456789`", parse_mode="Markdown")
+            return
+        if text.startswith("/activate_forever"):
+            parts = text.split()
+            if len(parts) >= 2:
+                user_id = int(parts[1])
+                add_premium(user_id, forever=True)
+                send_message(chat_id, f"✅ Премиум НАВСЕГДА активирован для `{user_id}`")
+                send_message(user_id, "⭐ Вам активирован Premium НАВСЕГДА!\n\n✅ 10 запросов в минуту\n✅ Безлимит запросов в день")
+            else:
+                send_message(chat_id, "❌ Использование: `/activate_forever 123456789`", parse_mode="Markdown")
+            return
+
+    # --- ОБЫЧНЫЕ КОМАНДЫ ---
     if text == "/start":
         welcome = """🤖 *Привет!*
 
@@ -395,11 +417,11 @@ def handle_command(chat_id, text, username):
 🚗 `/car` - поиск по номеру авто
 🖼️ `/photo` - поиск по фото
 📊 `/stats` - моя статистика
+💎 `/buy` - купить Premium
 ❓ `/help` - помощь
 
 ━━━━━━━━━━━━━━━━
 💡 *Пример:* `/email test@mail.com`"""
-    
         send_message(chat_id, welcome, parse_mode="Markdown")
     
     elif text == "/help":
@@ -416,11 +438,14 @@ def handle_command(chat_id, text, username):
 🚗 `/car а123вв777`
 🖼️ `/photo` - сервисы поиска фото
 📊 `/stats` - моя статистика
+💎 `/buy` - купить Premium
 
 ━━━━━━━━━━━━━━━━
 ⚠️ *ОГРАНИЧЕНИЯ:*
 ━━━━━━━━━━━━━━━━
-• 1 запрос в минуту
+• Бесплатно: 1 запрос/мин, 30 в день
+• Premium: 10 запросов/мин, безлимит
+
 ━━━━━━━━━━━━━━━━
 🤖 *OSINT Бот* | @tracergbot"""
         send_message(chat_id, help_text, parse_mode="Markdown")
@@ -441,12 +466,24 @@ def handle_command(chat_id, text, username):
         c.execute("SELECT type, COUNT(*) FROM searches WHERE user_id = ? GROUP BY type", (chat_id,))
         stats = c.fetchall()
         conn.close()
-        
         stats_text = f"📊 *Ваша статистика*\n\n━━━━━━━━━━━━━━━━\n📈 *Всего поисков:* {total}\n━━━━━━━━━━━━━━━━\n\n"
         for stype, count in stats:
             emoji = {"email": "📧", "nickname": "👤", "ip": "🌐", "phone": "📱", "car": "🚗"}.get(stype, "🔍")
             stats_text += f"{emoji} *{stype}:* {count}\n"
         send_message(chat_id, stats_text, parse_mode="Markdown")
+    
+    elif text == "/premium" or text == "/buy":
+        if is_premium(chat_id):
+            send_message(chat_id, "⭐ *У вас Premium!*\n\n✅ 10 запросов в минуту\n✅ Безлимит запросов в день", parse_mode="Markdown")
+        else:
+            # Кнопки оплаты через Telegram Stars
+            keyboard = {
+                "inline_keyboard": [
+                    [{"text": "⭐ 1 месяц - 300 Stars ($3)", "callback_data": "premium_month"}],
+                    [{"text": "⭐ Навсегда - 1000 Stars ($10)", "callback_data": "premium_forever"}]
+                ]
+            }
+            send_message(chat_id, "💎 *Premium тарифы*\n\n• 10 запросов/мин\n• Безлимит в день\n\n💰 *Цены:*\n• $3/месяц (300 Stars)\n• $10 навсегда (1000 Stars)\n\nВыберите тариф:", parse_mode="Markdown", reply_markup=keyboard)
     
     elif text.startswith("/email"):
         email = text.replace("/email", "").strip()
@@ -456,6 +493,7 @@ def handle_command(chat_id, text, username):
             result = run_email_search(email)
             send_message(chat_id, result, parse_mode="Markdown")
             save_search(chat_id, "email", email, result)
+            increment_daily(chat_id)
         else:
             send_message(chat_id, "❌ *Использование:* `/email email@example.com`", parse_mode="Markdown")
     
@@ -467,6 +505,7 @@ def handle_command(chat_id, text, username):
             result = run_nickname_search(nickname)
             send_message(chat_id, result, parse_mode="Markdown")
             save_search(chat_id, "nickname", nickname, result)
+            increment_daily(chat_id)
         else:
             send_message(chat_id, "❌ *Использование:* `/nickname username`", parse_mode="Markdown")
     
@@ -478,6 +517,7 @@ def handle_command(chat_id, text, username):
             result = run_ip_search(ip)
             send_message(chat_id, result, parse_mode="Markdown")
             save_search(chat_id, "ip", ip, result)
+            increment_daily(chat_id)
         else:
             send_message(chat_id, "❌ *Использование:* `/ip 8.8.8.8`", parse_mode="Markdown")
     
@@ -489,6 +529,7 @@ def handle_command(chat_id, text, username):
             result = run_phone_search(phone)
             send_message(chat_id, result, parse_mode="Markdown")
             save_search(chat_id, "phone", phone, result)
+            increment_daily(chat_id)
         else:
             send_message(chat_id, "❌ *Использование:* `/phone +380991234567`", parse_mode="Markdown")
     
@@ -500,16 +541,54 @@ def handle_command(chat_id, text, username):
             result = run_car_search(car)
             send_message(chat_id, result, parse_mode="Markdown")
             save_search(chat_id, "car", car, result)
+            increment_daily(chat_id)
         else:
             send_message(chat_id, "❌ *Использование:* `/car а123вв777`", parse_mode="Markdown")
     
     else:
         send_message(chat_id, "❌ *Неизвестная команда.* Используйте `/help`", parse_mode="Markdown")
 
-# ========== ЗАПУСК FLASK ==========
-from flask import Flask
-import threading
+# ========== ОБРАБОТКА КНОПОК (PREMIUM ОПЛАТА) ==========
+def handle_callback_query(callback_query):
+    callback_id = callback_query["id"]
+    chat_id = callback_query["message"]["chat"]["id"]
+    data = callback_query["data"]
+    
+    # Отвечаем на callback (чтобы убрать часики)
+    requests.post(URL + "answerCallbackQuery", json={"callback_query_id": callback_id})
+    
+    if data == "premium_month":
+        # Создаем счет на 300 Stars
+        url = f"https://api.telegram.org/bot{TOKEN}/createInvoiceLink"
+        payload = {
+            "title": "Premium 1 месяц",
+            "description": "10 запросов/мин, безлимит в день",
+            "payload": f"month_{chat_id}",
+            "currency": "XTR",
+            "prices": [{"label": "Premium 1 месяц", "amount": 300}]
+        }
+        resp = requests.post(url, json=payload).json()
+        if resp.get("ok"):
+            send_message(chat_id, f"💎 *Оплатите по ссылке:*\n{resp['result']}\n\nПосле оплаты Premium активируется автоматически!", parse_mode="Markdown")
+        else:
+            send_message(chat_id, "❌ Ошибка создания счета. Попробуйте позже.", parse_mode="Markdown")
+    
+    elif data == "premium_forever":
+        url = f"https://api.telegram.org/bot{TOKEN}/createInvoiceLink"
+        payload = {
+            "title": "Premium НАВСЕГДА",
+            "description": "10 запросов/мин, безлимит в день",
+            "payload": f"forever_{chat_id}",
+            "currency": "XTR",
+            "prices": [{"label": "Premium НАВСЕГДА", "amount": 1000}]
+        }
+        resp = requests.post(url, json=payload).json()
+        if resp.get("ok"):
+            send_message(chat_id, f"💎 *Оплатите по ссылке:*\n{resp['result']}\n\nПосле оплаты Premium активируется автоматически!", parse_mode="Markdown")
+        else:
+            send_message(chat_id, "❌ Ошибка создания счета. Попробуйте позже.", parse_mode="Markdown")
 
+# ========== ЗАПУСК FLASK ==========
 flask_app = Flask(__name__)
 
 @flask_app.route('/')
@@ -533,6 +612,28 @@ while True:
         for update in updates.get("result", []):
             last_id = update["update_id"]
             
+            # Обработка callback (нажатие кнопки)
+            if "callback_query" in update:
+                handle_callback_query(update["callback_query"])
+                continue
+            
+            # Обработка предзапроса оплаты (successful payment)
+            if "message" in update and "successful_payment" in update["message"]:
+                payment = update["message"]["successful_payment"]
+                payload = payment["invoice_payload"]
+                user_id = update["message"]["chat"]["id"]
+                if payload.startswith("month_"):
+                    add_premium(user_id, days=30)
+                    send_message(user_id, "⭐ *Premium на 1 месяц активирован!*\n\n✅ 10 запросов в минуту\n✅ Безлимит запросов в день", parse_mode="Markdown")
+                    for admin_id in ADMIN_IDS:
+                        send_message(admin_id, f"💰 Пользователь `{user_id}` купил Premium на МЕСЯЦ через Stars", parse_mode="Markdown")
+                elif payload.startswith("forever_"):
+                    add_premium(user_id, forever=True)
+                    send_message(user_id, "⭐ *Premium НАВСЕГДА активирован!*\n\n✅ 10 запросов в минуту\n✅ Безлимит запросов в день", parse_mode="Markdown")
+                    for admin_id in ADMIN_IDS:
+                        send_message(admin_id, f"💰 Пользователь `{user_id}` купил Premium НАВСЕГДА через Stars", parse_mode="Markdown")
+                continue
+            
             if "message" not in update:
                 continue
             
@@ -540,24 +641,20 @@ while True:
             text = update["message"].get("text", "")
             username = update["message"].get("from", {}).get("first_name", "Пользователь")
             
-            # Обработка входящих файлов (восстановление базы)
+            # Обработка входящих файлов (бэкап)
             if "document" in update["message"]:
                 doc = update["message"]["document"]
                 file_name = doc.get("file_name", "")
-                
-                # Проверяем что это файл базы данных
                 if file_name == "bot_database.db" and chat_id in ADMIN_IDS:
                     file_id = doc["file_id"]
                     file_info = requests.get(URL + "getFile", params={"file_id": file_id}).json()
                     file_path = file_info["result"]["file_path"]
                     file_url = f"https://api.telegram.org/file/bot{TOKEN}/{file_path}"
-                    
                     response = requests.get(file_url)
                     with open("bot_database.db", "wb") as f:
                         f.write(response.content)
-                    
                     send_message(chat_id, "✅ База данных восстановлена из бэкапа!")
-                    continue
+                continue
             
             # Регистрация пользователя
             conn = sqlite3.connect('bot_database.db')
