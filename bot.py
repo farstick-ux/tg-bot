@@ -39,7 +39,7 @@ def save_search(user_id, search_type, query, result):
 # ========== RATE LIMITING ==========
 user_commands = defaultdict(list)
 
-def rate_limit(user_id, limit=10, per_seconds=60):
+def rate_limit(user_id, limit=1, per_seconds=60):
     now = time.time()
     user_commands[user_id] = [t for t in user_commands[user_id] if now - t < per_seconds]
     if len(user_commands[user_id]) >= limit:
@@ -161,7 +161,7 @@ def run_nickname_search(username):
             
             # Twitter
             if site_name == "Twitter":
-                if "this account doesn’t exist" not in text and "not found" not in text:
+                if "this account doesn't exist" not in text and "not found" not in text:
                     found.append(f"✅ {site_name}: {url}")
                 continue
             
@@ -185,7 +185,7 @@ def run_nickname_search(username):
             
             # Twitch
             if site_name == "Twitch":
-                if "sorry. unless you’ve got a time machine" not in text:
+                if "sorry. unless you've got a time machine" not in text:
                     found.append(f"✅ {site_name}: {url}")
                 continue
             
@@ -218,20 +218,58 @@ def run_nickname_search(username):
     return f"👤 *Никнейм:* {username}\n\n❌ *Ничего не найдено*" + f"\n\n🔍 *Google Dorking:*\nhttps://www.google.com/search?q=intext:{username}" + f"\n\nYandex:\nhttps://yandex.com/search/touch/?text={username}"
 
 def run_ip_search(ip):
+    """Расширенный поиск по IP с картами"""
     ip_pattern = re.compile(r'^(\d{1,3}\.){3}\d{1,3}$')
     if not ip_pattern.match(ip):
         return "❌ *Неверный формат IP-адреса*"
+    
     try:
         response = requests.get(f"http://ip-api.com/json/{ip}", timeout=10)
         data = response.json()
-        if data.get('status') == 'success':
-            return f"""🌐 *IP:* {ip}
+        
+        if data.get('status') != 'success':
+            return f"❌ *Не удалось найти IP* {ip}"
+        
+        lat = data.get('lat', 0)
+        lon = data.get('lon', 0)
+        
+        # Ссылки на карты
+        google_maps = f"https://www.google.com/maps?q={lat},{lon}"
+        openstreetmap = f"https://www.openstreetmap.org/?mlat={lat}&mlon={lon}&zoom=10"
+        yandex_maps = f"https://yandex.com/maps/?pt={lon},{lat}&z=10"
+        
+        result = f"""🌐 *IP:* {ip}
 
+━━━━━━━━━━━━━━━━
+📍 *ГЕОЛОКАЦИЯ*
+━━━━━━━━━━━━━━━━
 📍 *Страна:* {data.get('country', 'Неизвестно')}
 🏙️ *Город:* {data.get('city', 'Неизвестно')}
-🏢 *Провайдер:* {data.get('isp', 'Неизвестно')}
-🗺️ *Координаты:* {data.get('lat')}, {data.get('lon')}"""
-        return f"❌ *Не удалось найти IP* {ip}"
+🗺️ *Регион:* {data.get('regionName', 'Неизвестно')}
+📌 *Координаты:* {lat}, {lon}
+✈️ *Почтовый индекс:* {data.get('zip', 'Неизвестно')}
+
+━━━━━━━━━━━━━━━━
+🏢 *ПРОВАЙДЕР*
+━━━━━━━━━━━━━━━━
+📡 *ISP:* {data.get('isp', 'Неизвестно')}
+💻 *Организация:* {data.get('org', 'Неизвестно')}
+🔢 *AS:* {data.get('as', 'Неизвестно')}
+
+━━━━━━━━━━━━━━━━
+🗺️ *КАРТЫ*
+━━━━━━━━━━━━━━━━
+• Google Maps: {google_maps}
+• OpenStreetMap: {openstreetmap}
+• Yandex Maps: {yandex_maps}
+
+━━━━━━━━━━━━━━━━
+🕵️ *ДОПОЛНИТЕЛЬНО*
+━━━━━━━━━━━━━━━━
+• Временная зона: {data.get('timezone', 'Неизвестно')}"""
+        
+        return result
+        
     except Exception as e:
         return f"❌ *Ошибка:* {e}"
 
@@ -330,7 +368,7 @@ def handle_command(chat_id, text, username):
 ━━━━━━━━━━━━━━━━
 ⚠️ *ОГРАНИЧЕНИЯ:*
 ━━━━━━━━━━━━━━━━
-• 10 запросов в минуту
+• 1 запрос в минуту
 ━━━━━━━━━━━━━━━━
 🤖 *OSINT Бот* | @tracergbot"""
         send_message(chat_id, help_text, parse_mode="Markdown")
