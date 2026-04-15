@@ -557,11 +557,11 @@ def handle_command(chat_id, text, username):
         else:
             keyboard = {
                 "inline_keyboard": [
-                    [{"text": "⭐ 1 месяц - 300 Stars ($3)", "callback_data": "premium_month"}],
-                    [{"text": "⭐ Навсегда - 1000 Stars ($10)", "callback_data": "premium_forever"}]
+                    [{"text": "⭐ 1 месяц - 100 Stars ($1)", "callback_data": "premium_month"}],
+                    [{"text": "⭐ Навсегда - 500 Stars ($5)", "callback_data": "premium_forever"}]
                 ]
             }
-            send_message(chat_id, "💎 *Premium тарифы*\n\n• 10 запросов/мин\n• Безлимит в день\n\n💰 *Цены:*\n• $3/месяц (300 Stars)\n• $10 навсегда (1000 Stars)\n\nВыберите тариф:", parse_mode="Markdown", reply_markup=keyboard)
+            send_message(chat_id, "💎 *Premium тарифы*\n\n• 10 запросов/мин\n• Безлимит в день\n\n💰 *Цены:*\n• $1/месяц (100 Stars)\n• $5 навсегда (500 Stars)\n\nВыберите тариф:", parse_mode="Markdown", reply_markup=keyboard)
     
     elif text.startswith("/promo"):
         code = text.replace("/promo", "").strip()
@@ -658,7 +658,7 @@ def handle_callback_query(callback_query):
             "description": "10 запросов/мин, безлимит в день",
             "payload": f"month_{chat_id}",
             "currency": "XTR",
-            "prices": [{"label": "Premium 1 месяц", "amount": 300}]
+            "prices": [{"label": "Premium 1 месяц", "amount": 100}]
         }
         resp = requests.post(url, json=payload).json()
         if resp.get("ok"):
@@ -673,7 +673,7 @@ def handle_callback_query(callback_query):
             "description": "10 запросов/мин, безлимит в день",
             "payload": f"forever_{chat_id}",
             "currency": "XTR",
-            "prices": [{"label": "Premium НАВСЕГДА", "amount": 1000}]
+            "prices": [{"label": "Premium НАВСЕГДА", "amount": 500}]
         }
         resp = requests.post(url, json=payload).json()
         if resp.get("ok"):
