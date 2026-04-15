@@ -50,11 +50,6 @@ def rate_limit(user_id, limit=1, per_seconds=60):
     user_commands[user_id].append(now)
     return True, 0
 
-# Админ команда
-    if chat_id in ADMIN_IDS and text == "/users":
-        send_message(chat_id, get_simple_stats(), parse_mode="Markdown")
-        return
-
 # ========== KEEP ALIVE ==========
 def keep_alive():
     while True:
@@ -101,8 +96,7 @@ def get_updates(offset=None):
     except:
         return {"result": []}
 
-# ========== ФУНКЦИИ ПОИСКА ========
-
+# ========== АДМИН ФУНКЦИЯ СТАТИСТИКИ ==========
 def get_simple_stats():
     """Простая статистика: пользователи и их ники"""
     conn = sqlite3.connect('bot_database.db')
@@ -117,7 +111,7 @@ def get_simple_stats():
     c.execute("SELECT COUNT(*) FROM users WHERE last_active LIKE ?", (f"{today}%",))
     active_today = c.fetchone()[0]
     
-    # Все пользователи с их никами (user_id)
+    # Все пользователи
     c.execute("SELECT user_id, last_active FROM users ORDER BY last_active DESC")
     users = c.fetchall()
     
@@ -138,12 +132,7 @@ def get_simple_stats():
     
     return result
 
-    # Проверка на админа
-    if chat_id in ADMIN_IDS:
-        if text == "/users":
-            result = get_simple_stats()
-            send_message(chat_id, result, parse_mode="Markdown")
-            return
+# ========== ФУНКЦИИ ПОИСКА ==========
 
 def run_email_search(email):
     try:
@@ -374,6 +363,12 @@ def handle_command(chat_id, text, username):
     allowed, wait_time = rate_limit(chat_id)
     if not allowed:
         send_message(chat_id, f"⏳ *Слишком много запросов!* Подождите {wait_time} секунд.", parse_mode="Markdown")
+        return
+    
+    # Админ команда /users
+    if chat_id in ADMIN_IDS and text == "/users":
+        result = get_simple_stats()
+        send_message(chat_id, result, parse_mode="Markdown")
         return
     
     if text == "/start":
