@@ -64,7 +64,6 @@ threading.Thread(target=keep_alive, daemon=True).start()
 
 # ========== ФУНКЦИЯ "ПЕЧАТАЕТ..." ==========
 def send_action(chat_id, action="typing"):
-    """Отправляет действие бота (печатает, ищет и т.д.)"""
     try:
         requests.post(URL + "sendChatAction", 
                       json={"chat_id": chat_id, "action": action}, timeout=5)
@@ -98,25 +97,16 @@ def get_updates(offset=None):
 
 # ========== АДМИН ФУНКЦИЯ СТАТИСТИКИ ==========
 def get_simple_stats():
-    """Простая статистика: пользователи и их ники"""
     conn = sqlite3.connect('bot_database.db')
     c = conn.cursor()
-    
-    # Всего пользователей
     c.execute("SELECT COUNT(*) FROM users")
     total_users = c.fetchone()[0]
-    
-    # Активные сегодня
     today = datetime.now().strftime("%Y-%m-%d")
     c.execute("SELECT COUNT(*) FROM users WHERE last_active LIKE ?", (f"{today}%",))
     active_today = c.fetchone()[0]
-    
-    # Все пользователи
     c.execute("SELECT user_id, last_active FROM users ORDER BY last_active DESC")
     users = c.fetchall()
-    
     conn.close()
-    
     result = f"""👥 *СТАТИСТИКА ПОЛЬЗОВАТЕЛЕЙ*
 
 ━━━━━━━━━━━━━━━━
@@ -126,10 +116,8 @@ def get_simple_stats():
 
 📋 *СПИСОК ПОЛЬЗОВАТЕЛЕЙ:*
 """
-    
     for i, (user_id, last_active) in enumerate(users, 1):
         result += f"\n{i}. `{user_id}` - последний раз: {last_active[:19]}"
-    
     return result
 
 # ========== ФУНКЦИИ ПОИСКА ==========
@@ -152,6 +140,7 @@ def run_email_search(email):
     except Exception as e:
         return f"❌ *Ошибка:* {e}"
 
+# ========== ИСПРАВЛЕННАЯ ФУНКЦИЯ ПОИСКА ПО НИКНЕЙМУ ==========
 def run_nickname_search(username):
     sites = {
         "TikTok": f"https://www.tiktok.com/@{username}",
@@ -176,74 +165,64 @@ def run_nickname_search(username):
     
     for site_name, url in sites.items():
         try:
-            r = requests.get(url, timeout=5, allow_redirects=True)
+            # Для всех запросов используем allow_redirects=True, чтобы получить финальную страницу
+            r = requests.get(url, timeout=8, allow_redirects=True)
             text = r.text.lower()
+            status = r.status_code
+            
+            # ----- СПЕЦИАЛЬНЫЕ ПРОВЕРКИ ДЛЯ КАЖДОГО САЙТА -----
+            exists = False
             
             # Telegram
             if site_name == "Telegram":
                 if "tgme_page_title" in r.text and "if you have telegram" not in text:
-                    found.append(f"✅ {site_name}: {url}")
-                continue
+                    exists = True
             
-            # TikTok
-            if site_name == "TikTok":
-                if "couldn't find" not in text and "page not found" not in text:
-                    found.append(f"✅ {site_name}: {url}")
-                continue
+            # TikTok (исправлено: проверяем наличие признаков профиля)
+            elif site_name == "TikTok":
+                # Признаки существующего профиля: наличие followers/following или мета-тегов с описанием
+                if (status == 200 and 
+                    "couldn't find" not in text and 
+                    "page not found" not in text and
+                    "something went wrong" not in text and
+                    ("followers" in text or "подписчики" in text or "following" in text or "follow" in text)):
+                    exists = True
             
-            # Instagram
-            if site_name == "Instagram":
-                if "page not found" not in text and "sorry, this page isn't available" not in text:
-                    found.append(f"✅ {site_name}: {url}")
-                continue
+            # YouTube
+            elif site_name == "YouTube":
+                if status == 200 and "this channel does not exist" not in text and "not found" not in text:
+                    exists = True
             
-            # Twitter
-            if site_name == "Twitter":
-                if "this account doesn't exist" not in text and "not found" not in text:
-                    found.append(f"✅ {site_name}: {url}")
-                continue
-            
-            # Facebook
-            if site_name == "Facebook":
-                if "this content isn't available" not in text and "page not found" not in text:
-                    found.append(f"✅ {site_name}: {url}")
-                continue
-            
-            # Discord
-            if site_name == "Discord":
-                if "sorry, nobody" not in text and "not found" not in text:
-                    found.append(f"✅ {site_name}: {url}")
-                continue
-            
-            # Pinterest
-            if site_name == "Pinterest":
-                if "page not found" not in text and "we couldn't find that page" not in text:
-                    found.append(f"✅ {site_name}: {url}")
-                continue
-            
-            # Twitch
-            if site_name == "Twitch":
-                if "sorry. unless you've got a time machine" not in text:
-                    found.append(f"✅ {site_name}: {url}")
-                continue
-            
-            # Reddit
-            if site_name == "Reddit":
-                if "page not found" not in text and "there doesn't seem to be anything here" not in text:
-                    found.append(f"✅ {site_name}: {url}")
-                continue
+            # VK
+            elif site_name == "VK":
+                if status == 200 and "пользователь не найден" not in text and "user not found" not in text:
+                    exists = True
             
             # Steam
-            if site_name == "Steam":
+            elif site_name == "Steam":
                 if "the specified profile could not be found" not in text:
-                    found.append(f"✅ {site_name}: {url}")
-                continue
+                    exists = True
             
-            # Обычные сайты (GitHub, YouTube, VK и т.д.)
-            if r.status_code == 200:
-                # Дополнительная проверка для LinkedIn
-                if site_name == "LinkedIn" and "page not found" in text:
-                    continue
+            # Discord
+            elif site_name == "Discord":
+                if "sorry, nobody" not in text and "not found" not in text:
+                    exists = True
+            
+            # Instagram, Twitter, Facebook, Pinterest, Twitch, Reddit, LinkedIn (общие проверки)
+            elif site_name in ["Instagram", "Twitter", "Facebook", "Pinterest", "Twitch", "Reddit", "LinkedIn"]:
+                error_phrases = ["page not found", "sorry, this page isn't available", 
+                                 "this account doesn't exist", "this content isn't available",
+                                 "we couldn't find that page", "sorry. unless you've got a time machine",
+                                 "there doesn't seem to be anything here", "user not found"]
+                if status == 200 and not any(phrase in text for phrase in error_phrases):
+                    exists = True
+            
+            # Остальные сайты (GitHub, Tumblr, Medium, Spotify, Flickr, Behance, Dribbble, ProductHunt, GitLab, Snapchat)
+            else:
+                if status == 200:
+                    exists = True
+            
+            if exists:
                 found.append(f"✅ {site_name}: {url}")
                 
         except requests.Timeout:
@@ -271,7 +250,6 @@ def run_ip_search(ip):
         lat = data.get('lat', 0)
         lon = data.get('lon', 0)
         
-        # Ссылки на карты
         google_maps = f"https://www.google.com/maps?q={lat},{lon}"
         openstreetmap = f"https://www.openstreetmap.org/?mlat={lat}&mlon={lon}&zoom=10"
         yandex_maps = f"https://yandex.com/maps/?pt={lon},{lat}&z=10"
