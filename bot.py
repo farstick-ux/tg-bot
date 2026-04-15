@@ -8,7 +8,6 @@ import sqlite3
 from datetime import datetime, timedelta
 from collections import defaultdict
 from flask import Flask
-import threading as th
 
 TOKEN = os.getenv("BOT_TOKEN")
 ADMIN_IDS = [6695578489]  # Твой ID
@@ -64,6 +63,45 @@ def add_premium(user_id, days=30, forever=False):
     c.execute("INSERT OR REPLACE INTO premium VALUES (?, ?)", (user_id, until))
     conn.commit()
     conn.close()
+
+# ========== ПРОМОКОДЫ ==========
+promocodes = {}
+
+def save_promocodes():
+    with open("promocodes.txt", "w") as f:
+        for code, data in promocodes.items():
+            f.write(f"{code}|{data['type']}|{data['uses']}|{data['used']}\n")
+
+def load_promocodes():
+    global promocodes
+    if os.path.exists("promocodes.txt"):
+        with open("promocodes.txt", "r") as f:
+            for line in f:
+                parts = line.strip().split("|")
+                if len(parts) == 4:
+                    code, promo_type, uses, used = parts
+                    promocodes[code] = {"type": promo_type, "uses": int(uses), "used": int(used)}
+
+def add_promocode(code, promo_type, uses):
+    promocodes[code] = {"type": promo_type, "uses": uses, "used": 0}
+    save_promocodes()
+
+def remove_promocode(code):
+    if code in promocodes:
+        del promocodes[code]
+        save_promocodes()
+
+def use_promocode(code):
+    if code not in promocodes:
+        return None
+    promo = promocodes[code]
+    if promo["uses"] > 0 and promo["used"] >= promo["uses"]:
+        return "expired"
+    promo["used"] += 1
+    save_promocodes()
+    return promo["type"]
+
+load_promocodes()
 
 # ========== RATE LIMITING ==========
 user_commands = defaultdict(list)
@@ -260,7 +298,7 @@ def run_nickname_search(username):
         except:
             continue
     if found:
-        return f"👤 *Никнейм:* {username}\n\n🔎 *НАЙДЕНО:*\n" + "\n".join(found[:30]) + f"\n\n🔍 *Google Dorking:*\nhttps://www.google.com/search?q=intext:{username}" + f"\n\nYandex:\nhttps://yandex.com/search/touch/?text={username}"
+        return f"👤 *Никнейм:* {username}\n\n✅ *НАЙДЕНО:*\n" + "\n".join(found[:30]) + f"\n\n🔍 *Google Dorking:*\nhttps://www.google.com/search?q=intext:{username}" + f"\n\nYandex:\nhttps://yandex.com/search/touch/?text={username}"
     return f"👤 *Никнейм:* {username}\n\n❌ *Ничего не найдено*" + f"\n\n🔍 *Google Dorking:*\nhttps://www.google.com/search?q=intext:{username}" + f"\n\nYandex:\nhttps://yandex.com/search/touch/?text={username}"
 
 def run_ip_search(ip):
@@ -399,6 +437,45 @@ def handle_command(chat_id, text, username):
             else:
                 send_message(chat_id, "❌ Использование: `/activate_forever 123456789`", parse_mode="Markdown")
             return
+        
+        # ПРОМОКОДЫ (только админ)
+        if text.startswith("/add_promo"):
+            parts = text.split()
+            if len(parts) >= 4:
+                code = parts[1]
+                promo_type = parts[2]
+                uses = int(parts[3])
+                if promo_type not in ["month", "forever"]:
+                    send_message(chat_id, "❌ Тип должен быть: `month` или `forever`", parse_mode="Markdown")
+                    return
+                add_promocode(code, promo_type, uses)
+                send_message(chat_id, f"✅ Промокод `{code}` добавлен!\nТип: {promo_type}\nИспользований: {uses}", parse_mode="Markdown")
+            else:
+                send_message(chat_id, "❌ Использование: `/add_promo КОД month/forever кол-во`", parse_mode="Markdown")
+            return
+        
+        if text.startswith("/del_promo"):
+            parts = text.split()
+            if len(parts) >= 2:
+                code = parts[1]
+                if code in promocodes:
+                    remove_promocode(code)
+                    send_message(chat_id, f"✅ Промокод `{code}` удален!", parse_mode="Markdown")
+                else:
+                    send_message(chat_id, f"❌ Промокод `{code}` не найден", parse_mode="Markdown")
+            else:
+                send_message(chat_id, "❌ Использование: `/del_promo КОД`", parse_mode="Markdown")
+            return
+        
+        if text == "/list_promo":
+            if not promocodes:
+                send_message(chat_id, "📭 Нет активных промокодов")
+                return
+            result = "🎫 *СПИСОК ПРОМОКОДОВ*\n\n"
+            for code, data in promocodes.items():
+                result += f"`{code}` - {data['type']} - использовано {data['used']}/{data['uses']}\n"
+            send_message(chat_id, result, parse_mode="Markdown")
+            return
 
     # --- ОБЫЧНЫЕ КОМАНДЫ ---
     if text == "/start":
@@ -418,6 +495,7 @@ def handle_command(chat_id, text, username):
 🖼️ `/photo` - поиск по фото
 📊 `/stats` - моя статистика
 💎 `/buy` - купить Premium
+🎫 `/promo` - активировать промокод
 ❓ `/help` - помощь
 
 ━━━━━━━━━━━━━━━━
@@ -439,6 +517,7 @@ def handle_command(chat_id, text, username):
 🖼️ `/photo` - сервисы поиска фото
 📊 `/stats` - моя статистика
 💎 `/buy` - купить Premium
+🎫 `/promo КОД` - активировать промокод
 
 ━━━━━━━━━━━━━━━━
 ⚠️ *ОГРАНИЧЕНИЯ:*
@@ -476,7 +555,6 @@ def handle_command(chat_id, text, username):
         if is_premium(chat_id):
             send_message(chat_id, "⭐ *У вас Premium!*\n\n✅ 10 запросов в минуту\n✅ Безлимит запросов в день", parse_mode="Markdown")
         else:
-            # Кнопки оплаты через Telegram Stars
             keyboard = {
                 "inline_keyboard": [
                     [{"text": "⭐ 1 месяц - 300 Stars ($3)", "callback_data": "premium_month"}],
@@ -484,6 +562,23 @@ def handle_command(chat_id, text, username):
                 ]
             }
             send_message(chat_id, "💎 *Premium тарифы*\n\n• 10 запросов/мин\n• Безлимит в день\n\n💰 *Цены:*\n• $3/месяц (300 Stars)\n• $10 навсегда (1000 Stars)\n\nВыберите тариф:", parse_mode="Markdown", reply_markup=keyboard)
+    
+    elif text.startswith("/promo"):
+        code = text.replace("/promo", "").strip()
+        if not code:
+            send_message(chat_id, "❌ Использование: `/promo КОД`", parse_mode="Markdown")
+            return
+        result = use_promocode(code)
+        if result == "expired":
+            send_message(chat_id, "❌ Промокод использован максимальное количество раз", parse_mode="Markdown")
+        elif result == "month":
+            add_premium(chat_id, days=30)
+            send_message(chat_id, "🎫 *Промокод активирован!*\n⭐ Premium на 1 месяц активирован!\n\n✅ 10 запросов в минуту\n✅ Безлимит запросов в день", parse_mode="Markdown")
+        elif result == "forever":
+            add_premium(chat_id, forever=True)
+            send_message(chat_id, "🎫 *Промокод активирован!*\n⭐ Premium НАВСЕГДА активирован!\n\n✅ 10 запросов в минуту\n✅ Безлимит запросов в день", parse_mode="Markdown")
+        else:
+            send_message(chat_id, "❌ Неверный промокод", parse_mode="Markdown")
     
     elif text.startswith("/email"):
         email = text.replace("/email", "").strip()
@@ -554,11 +649,9 @@ def handle_callback_query(callback_query):
     chat_id = callback_query["message"]["chat"]["id"]
     data = callback_query["data"]
     
-    # Отвечаем на callback (чтобы убрать часики)
     requests.post(URL + "answerCallbackQuery", json={"callback_query_id": callback_id})
     
     if data == "premium_month":
-        # Создаем счет на 300 Stars
         url = f"https://api.telegram.org/bot{TOKEN}/createInvoiceLink"
         payload = {
             "title": "Premium 1 месяц",
@@ -612,12 +705,10 @@ while True:
         for update in updates.get("result", []):
             last_id = update["update_id"]
             
-            # Обработка callback (нажатие кнопки)
             if "callback_query" in update:
                 handle_callback_query(update["callback_query"])
                 continue
             
-            # Обработка предзапроса оплаты (successful payment)
             if "message" in update and "successful_payment" in update["message"]:
                 payment = update["message"]["successful_payment"]
                 payload = payment["invoice_payload"]
@@ -641,7 +732,6 @@ while True:
             text = update["message"].get("text", "")
             username = update["message"].get("from", {}).get("first_name", "Пользователь")
             
-            # Обработка входящих файлов (бэкап)
             if "document" in update["message"]:
                 doc = update["message"]["document"]
                 file_name = doc.get("file_name", "")
@@ -656,7 +746,6 @@ while True:
                     send_message(chat_id, "✅ База данных восстановлена из бэкапа!")
                 continue
             
-            # Регистрация пользователя
             conn = sqlite3.connect('bot_database.db')
             c = conn.cursor()
             c.execute("INSERT OR IGNORE INTO users VALUES (?, ?, ?)",
