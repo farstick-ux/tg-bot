@@ -124,7 +124,7 @@ def increment_daily(user_id):
 
 def rate_limit(user_id):
     now = time.time()
-    limit = 10 if is_premium(user_id) else 1
+    limit = 10 if is_premium(user_id) else 2
     per_seconds = 60
     user_commands[user_id] = [t for t in user_commands[user_id] if now - t < per_seconds]
     if len(user_commands[user_id]) >= limit:
@@ -195,11 +195,11 @@ def get_simple_stats():
     result = f"""👥 *СТАТИСТИКА ПОЛЬЗОВАТЕЛЕЙ*
 
 ━━━━━━━━━━━━━━━━
-📊 *ВСЕГО:* {total_users} пользователей
+📋 *ВСЕГО:* {total_users} пользователей
 📈 *АКТИВНЫ СЕГОДНЯ:* {active_today}
 ━━━━━━━━━━━━━━━━
 
-📋 *СПИСОК ПОЛЬЗОВАТЕЛЕЙ:*
+📃 *СПИСОК ПОЛЬЗОВАТЕЛЕЙ:*
 """
     for i, (user_id, last_active) in enumerate(users, 1):
         result += f"\n{i}. `{user_id}` - последний раз: {last_active[:19]}"
@@ -298,7 +298,7 @@ def run_nickname_search(username):
         except:
             continue
     if found:
-        return f"👤 *Никнейм:* {username}\n\n✅ *НАЙДЕНО:*\n" + "\n".join(found[:30]) + f"\n\n🔍 *Google Dorking:*\nhttps://www.google.com/search?q=intext:{username}" + f"\n\nYandex:\nhttps://yandex.com/search/touch/?text={username}"
+        return f"👤 *Никнейм:* {username}\n\n🔎 *НАЙДЕНО:*\n" + "\n".join(found[:30]) + f"\n\n🔍 *Google Dorking:*\nhttps://www.google.com/search?q=intext:{username}" + f"\n\nYandex:\nhttps://yandex.com/search/touch/?text={username}"
     return f"👤 *Никнейм:* {username}\n\n❌ *Ничего не найдено*" + f"\n\n🔍 *Google Dorking:*\nhttps://www.google.com/search?q=intext:{username}" + f"\n\nYandex:\nhttps://yandex.com/search/touch/?text={username}"
 
 def run_ip_search(ip):
@@ -318,7 +318,7 @@ def run_ip_search(ip):
         result = f"""🌐 *IP:* {ip}
 
 ━━━━━━━━━━━━━━━━
-📍 *ГЕОЛОКАЦИЯ*
+🌎 *ГЕОЛОКАЦИЯ*
 ━━━━━━━━━━━━━━━━
 📍 *Страна:* {data.get('country', 'Неизвестно')}
 🏙️ *Город:* {data.get('city', 'Неизвестно')}
@@ -354,7 +354,7 @@ def run_phone_search(phone):
     result += f"• WhatsApp:\n https://wa.me/{phone_clean}\n"
     result += f"• Telegram:\n https://t.me/{phone_clean}\n"
     result += f"• Google:\n https://www.google.com/search?q={phone_clean}\n"
-    result += f"\n• Дополнительно: (google dorking)\nhttps://www.google.com/search?q=телефон+{phone_clean}+{phone}+контакт+мобільний+call+phone+filetype:xls+OR+filetype:txt\n"
+    result += f"\n• Дополнительно: (google dorking)\nhttps://www.google.com/search?q={phone}+filetype:xls+OR+filetype:txt\n"
     result += f"• Yandex:\nhttps://yandex.com/search/touch/?text={phone}\n"
     return result
 
@@ -396,7 +396,7 @@ def run_photo_search():
 def handle_command(chat_id, text, username):
     # Дневной лимит
     if not check_daily_limit(chat_id):
-        send_message(chat_id, "❌ *Лимит 30 запросов в день исчерпан!*\n💎 Купите Premium: `/buy`", parse_mode="Markdown")
+        send_message(chat_id, "❌ *Лимит 40 запросов в день исчерпан!*\n💎 Купите Premium: `/buy`", parse_mode="Markdown")
         return
     
     # Rate limit
@@ -522,8 +522,8 @@ def handle_command(chat_id, text, username):
 ━━━━━━━━━━━━━━━━
 ⚠️ *ОГРАНИЧЕНИЯ:*
 ━━━━━━━━━━━━━━━━
-• Бесплатно: 1 запрос/мин, 30 в день
-• Premium: 10 запросов/мин, безлимит
+• Бесплатно: до 2 запрос/мин, 30 в день
+• Premium: до 10 запросов/мин, безлимит
 
 ━━━━━━━━━━━━━━━━
 🤖 *OSINT Бот* | @tracergbot"""
@@ -545,7 +545,7 @@ def handle_command(chat_id, text, username):
         c.execute("SELECT type, COUNT(*) FROM searches WHERE user_id = ? GROUP BY type", (chat_id,))
         stats = c.fetchall()
         conn.close()
-        stats_text = f"📊 *Ваша статистика*\n\n━━━━━━━━━━━━━━━━\n📈 *Всего поисков:* {total}\n━━━━━━━━━━━━━━━━\n\n"
+        stats_text = f"📝 *Ваша статистика*\n\n━━━━━━━━━━━━━━━━\n📈 *Всего поисков:* {total}\n━━━━━━━━━━━━━━━━\n\n"
         for stype, count in stats:
             emoji = {"email": "📧", "nickname": "👤", "ip": "🌐", "phone": "📱", "car": "🚗"}.get(stype, "🔍")
             stats_text += f"{emoji} *{stype}:* {count}\n"
@@ -553,15 +553,15 @@ def handle_command(chat_id, text, username):
     
     elif text == "/premium" or text == "/buy":
         if is_premium(chat_id):
-            send_message(chat_id, "⭐ *У вас Premium!*\n\n✅ 10 запросов в минуту\n✅ Безлимит запросов в день", parse_mode="Markdown")
+            send_message(chat_id, "⭐ *У вас уже есть Premium!*\n✅ до 10 запросов в минуту\n✅ Безлимит запросов в день", parse_mode="Markdown")
         else:
             keyboard = {
                 "inline_keyboard": [
-                    [{"text": "⭐ 1 месяц - 100 Stars ($1)", "callback_data": "premium_month"}],
-                    [{"text": "⭐ Навсегда - 500 Stars ($5)", "callback_data": "premium_forever"}]
+                    [{"text": "⭐ 1 месяц - 80 Stars ($1)", "callback_data": "premium_month"}],
+                    [{"text": "⭐ Навсегда - 300 Stars ($5)", "callback_data": "premium_forever"}]
                 ]
             }
-            send_message(chat_id, "💎 *Premium тарифы*\n\n• 10 запросов/мин\n• Безлимит в день\n\n💰 *Цены:*\n• $1/месяц (100 Stars)\n• $5 навсегда (500 Stars)\n\nВыберите тариф:", parse_mode="Markdown", reply_markup=keyboard)
+            send_message(chat_id, "💎 *Premium тарифы*\n\n• до 10 запросов/мин\n• Безлимит в день\n\n💰 *Цены:*\n• $1/месяц (80 Stars)\n• $5 навсегда (300 Stars)\n\nВыберите тариф:", parse_mode="Markdown", reply_markup=keyboard)
     
     elif text.startswith("/promo"):
         code = text.replace("/promo", "").strip()
@@ -573,10 +573,10 @@ def handle_command(chat_id, text, username):
             send_message(chat_id, "❌ Промокод использован максимальное количество раз", parse_mode="Markdown")
         elif result == "month":
             add_premium(chat_id, days=30)
-            send_message(chat_id, "🎫 *Промокод активирован!*\n⭐ Premium на 1 месяц активирован!\n\n✅ 10 запросов в минуту\n✅ Безлимит запросов в день", parse_mode="Markdown")
+            send_message(chat_id, "🎫 *Промокод активирован!*\n⭐ Premium на 1 месяц активирован!\n\n✅ до 10 запросов в минуту\n✅ Безлимит запросов в день", parse_mode="Markdown")
         elif result == "forever":
             add_premium(chat_id, forever=True)
-            send_message(chat_id, "🎫 *Промокод активирован!*\n⭐ Premium НАВСЕГДА активирован!\n\n✅ 10 запросов в минуту\n✅ Безлимит запросов в день", parse_mode="Markdown")
+            send_message(chat_id, "🎫 *Промокод активирован!*\n⭐ Premium НАВСЕГДА активирован!\n\n✅ до 10 запросов в минуту\n✅ Безлимит запросов в день", parse_mode="Markdown")
         else:
             send_message(chat_id, "❌ Неверный промокод", parse_mode="Markdown")
     
@@ -655,10 +655,10 @@ def handle_callback_query(callback_query):
         url = f"https://api.telegram.org/bot{TOKEN}/createInvoiceLink"
         payload = {
             "title": "Premium 1 месяц",
-            "description": "10 запросов/мин, безлимит в день",
+            "description": "до 10 запросов/мин, безлимит в день",
             "payload": f"month_{chat_id}",
             "currency": "XTR",
-            "prices": [{"label": "Premium 1 месяц", "amount": 100}]
+            "prices": [{"label": "Premium 1 месяц", "amount": 80}]
         }
         resp = requests.post(url, json=payload).json()
         if resp.get("ok"):
@@ -670,10 +670,10 @@ def handle_callback_query(callback_query):
         url = f"https://api.telegram.org/bot{TOKEN}/createInvoiceLink"
         payload = {
             "title": "Premium НАВСЕГДА",
-            "description": "10 запросов/мин, безлимит в день",
+            "description": "до 10 запросов/мин, безлимит в день",
             "payload": f"forever_{chat_id}",
             "currency": "XTR",
-            "prices": [{"label": "Premium НАВСЕГДА", "amount": 500}]
+            "prices": [{"label": "Premium НАВСЕГДА", "amount": 300}]
         }
         resp = requests.post(url, json=payload).json()
         if resp.get("ok"):
@@ -715,12 +715,12 @@ while True:
                 user_id = update["message"]["chat"]["id"]
                 if payload.startswith("month_"):
                     add_premium(user_id, days=30)
-                    send_message(user_id, "⭐ *Premium на 1 месяц активирован!*\n\n✅ 10 запросов в минуту\n✅ Безлимит запросов в день", parse_mode="Markdown")
+                    send_message(user_id, "⭐ *Premium на 1 месяц активирован!*\n\n✅ до 10 запросов в минуту\n✅ Безлимит запросов в день", parse_mode="Markdown")
                     for admin_id in ADMIN_IDS:
                         send_message(admin_id, f"💰 Пользователь `{user_id}` купил Premium на МЕСЯЦ через Stars", parse_mode="Markdown")
                 elif payload.startswith("forever_"):
                     add_premium(user_id, forever=True)
-                    send_message(user_id, "⭐ *Premium НАВСЕГДА активирован!*\n\n✅ 10 запросов в минуту\n✅ Безлимит запросов в день", parse_mode="Markdown")
+                    send_message(user_id, "⭐ *Premium НАВСЕГДА активирован!*\n\n✅ до 10 запросов в минуту\n✅ Безлимит запросов в день", parse_mode="Markdown")
                     for admin_id in ADMIN_IDS:
                         send_message(admin_id, f"💰 Пользователь `{user_id}` купил Premium НАВСЕГДА через Stars", parse_mode="Markdown")
                 continue
