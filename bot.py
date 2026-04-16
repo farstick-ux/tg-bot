@@ -232,8 +232,8 @@ def run_email_search(email):
                 if len(site) > 3 and site.lower() not in ['email', 'mail']:
                     found_sites.append(f"✅ {site[:100]}")
         if found_sites:
-            return f"📧 *Email:* {email}\n\n🔎 *НАЙДЕНО:*\n" + "\n".join(found_sites[:100]) + f"\n\nДополнительно: (google dorking)\nhttps://www.google.com/search?q={email}+filetype:xls+OR+filetype:txt+OR+filetype:pdf" + f"\n\nYandex:\nhttps://yandex.com/search/touch/?text={email}"
-        return f"📧 *Email:* {email}\n\n❌ *Ничего не найдено*\n\nДополнительно: (google dorking)\nhttps://www.google.com/search?q={email}+filetype:xls+OR+filetype:txt+OR+filetype:pdf" + f"\n\nYandex:\nhttps://yandex.com/search/touch/?text={email}"
+            return f"📧 *Email:* {email}\n\n🔎 *НАЙДЕНО:*\n" + "\n".join(found_sites[:100]) + f"\n\nДополнительно: (google dorking)\nhttps://www.google.com/search?q=%22{email}%22%20OR%20intext:%22{email}%22%20OR%20intitle:%22{email}%22%20OR%20inurl:%22{email}%22%20site:instagram.com%20OR%20site:twitter.com%20OR%20site:tiktok.com%20OR%20site:github.com%20OR%20site:reddit.com%20OR%20site:t.me%20OR%20site:facebook.com%20OR%20site:linkedin.com%20OR%20site:youtube.com%20OR%20site:pastebin.com%20OR%20site:docs.google.com" + f"\n\nYandex:\nhttps://yandex.com/search/touch/?text={email}"
+        return f"📧 *Email:* {email}\n\n❌ *Ничего не найдено*\n\nДополнительно: (google dorking)\nhttps://www.google.com/search?q=%22{email}%22%20OR%20intext:%22{email}%22%20OR%20intitle:%22{email}%22%20OR%20inurl:%22{email}%22%20site:instagram.com%20OR%20site:twitter.com%20OR%20site:tiktok.com%20OR%20site:github.com%20OR%20site:reddit.com%20OR%20site:t.me%20OR%20site:facebook.com%20OR%20site:linkedin.com%20OR%20site:youtube.com%20OR%20site:pastebin.com%20OR%20site:docs.google.com" + f"\n\nYandex:\nhttps://yandex.com/search/touch/?text={email}"
     except Exception as e:
         return f"❌ *Ошибка:* {e}"
 
