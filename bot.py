@@ -353,8 +353,7 @@ def run_phone_search(phone):
     result = f"📱 *Телефон:* {phone_clean}\n\n"
     result += f"• WhatsApp:\n https://wa.me/{phone_clean}\n"
     result += f"• Telegram:\n https://t.me/{phone_clean}\n"
-    result += f"• Google:\n https://www.google.com/search?q={phone_clean}\n"
-    result += f"\n• Дополнительно: (google dorking)\nhttps://www.google.com/search?q={phone}+filetype:xls+OR+filetype:txt\n"
+    result += f"\n• Дополнительно: (google dorking)\nhttps://www.google.com/search?q=%22{phone}%22%20OR%20intext:%22{phone}%22%20OR%20intitle:%22{phone}%22%20OR%20inurl:%22{phone}%22%20site:instagram.com%20OR%20site:twitter.com%20OR%20site:facebook.com%20OR%20site:linkedin.com%20OR%20site:t.me%20OR%20site:pastebin.com%20OR%20site:docs.google.com%20OR%20site:trello.com%20OR%20site:github.com%20OR%20site:avito.ru%20OR%20site:olx.ua%20OR%20site:olx.ru%20OR%20site:proza.ru%20OR%20site:stihi.ru%20OR%20site:forum.ru%20OR%20site:4pda.to%20OR%20site:habr.com\n"
     result += f"• Yandex:\nhttps://yandex.com/search/touch/?text={phone}\n"
     return result
 
