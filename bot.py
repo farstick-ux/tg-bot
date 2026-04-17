@@ -232,8 +232,8 @@ def run_email_search(email):
                 if len(site) > 3 and site.lower() not in ['email', 'mail']:
                     found_sites.append(f"✅ {site[:100]}")
         if found_sites:
-            return f"📧 *Email:* {email}\n\n🔎 *НАЙДЕНО:*\n" + "\n".join(found_sites[:100]) + f"\n\nДополнительно: (google dorking)\nhttps://www.google.com/search?q=%22{email}%22%20OR%20intext:%22{email}%22%20OR%20intitle:%22{email}%22%20OR%20inurl:%22{email}%22%20site:instagram.com%20OR%20site:twitter.com%20OR%20site:tiktok.com%20OR%20site:github.com%20OR%20site:reddit.com%20OR%20site:t.me%20OR%20site:facebook.com%20OR%20site:linkedin.com%20OR%20site:youtube.com%20OR%20site:pastebin.com%20OR%20site:docs.google.com" + f"\n\nYandex:\nhttps://yandex.com/search/touch/?text={email}"
-        return f"📧 *Email:* {email}\n\n❌ *Ничего не найдено*\n\nДополнительно: (google dorking)\nhttps://www.google.com/search?q=%22{email}%22%20OR%20intext:%22{email}%22%20OR%20intitle:%22{email}%22%20OR%20inurl:%22{email}%22%20site:instagram.com%20OR%20site:twitter.com%20OR%20site:tiktok.com%20OR%20site:github.com%20OR%20site:reddit.com%20OR%20site:t.me%20OR%20site:facebook.com%20OR%20site:linkedin.com%20OR%20site:youtube.com%20OR%20site:pastebin.com%20OR%20site:docs.google.com" + f"\n\nYandex:\nhttps://yandex.com/search/touch/?text={email}"
+            return f"📧 *Email:* {email}\n\n🔎 *НАЙДЕНО:*\n" + "\n".join(found_sites[:100]) + f"\n\nДополнительно: (google dorking)\nhttps://www.google.com/search?q=intext:{email}" + f"\n\nYandex:\nhttps://yandex.com/search/touch/?text={email}"
+        return f"📧 *Email:* {email}\n\n❌ *Ничего не найдено*\n\nДополнительно: (google dorking)\nhttps://www.google.com/search?q=intext:{email}" + f"\n\nYandex:\nhttps://yandex.com/search/touch/?text={email}"
     except Exception as e:
         return f"❌ *Ошибка:* {e}"
 
@@ -298,8 +298,8 @@ def run_nickname_search(username):
         except:
             continue
     if found:
-        return f"👤 *Никнейм:* {username}\n\n🔎 *НАЙДЕНО:*\n" + "\n".join(found[:30]) + f"\n\n🔍 *Google Dorking:*\nhttps://www.google.com/search?q=%22{username}%22%20OR%20%22{username}@gmail.com%22%20OR%20%22+380%22%20OR%20%22+7%22%20site:instagram.com%20OR%20site:twitter.com%20OR%20site:tiktok.com%20OR%20site:github.com%20OR%20site:reddit.com%20OR%20site:t.me%20OR%20site:facebook.com%20OR%20site:linkedin.com%20OR%20site:youtube.com" + f"\n\nYandex:\nhttps://yandex.com/search/touch/?text={username}" + f"\nРасширенный поиск:\nhttps://whatsmyname.app"
-    return f"👤 *Никнейм:* {username}\n\n❌ *Ничего не найдено*" + f"\n\n🔍 *Google Dorking:*\nhttps://www.google.com/search?q=%22{username}%22%20OR%20%22{username}@gmail.com%22%20OR%20%22+38022%20OR%20%22+7%22%20site:instagram.com%20OR%20site:twitter.com%20OR%20site:tiktok.com%20OR%20site:github.com%20OR%20site:reddit.com%20OR%20site:t.me%20OR%20site:facebook.com%20OR%20site:linkedin.com%20OR%20site:youtube.com" + f"\n\nYandex:\nhttps://yandex.com/search/touch/?text={username}" + f"\nРасширенный поиск:\nhttps://whatsmyname.app"
+        return f"👤 *Никнейм:* {username}\n\n🔎 *НАЙДЕНО:*\n" + "\n".join(found[:30]) + f"\n\n🔍 *Google Dorking:*\nhttps:google.com/search?q=intext:{username}" + f"\n\nYandex:\nhttps://yandex.com/search/touch/?text={username}" + f"\nРасширенный поиск:\nhttps://whatsmyname.app"
+    return f"👤 *Никнейм:* {username}\n\n❌ *Ничего не найдено*" + f"\n\n🔍 *Google Dorking:*\nhttps://www.google.com/search?q=intext:{username}" + f"\n\nYandex:\nhttps://yandex.com/search/touch/?text={username}" + f"\nРасширенный поиск:\nhttps://whatsmyname.app"
 
 def run_ip_search(ip):
     ip_pattern = re.compile(r'^(\d{1,3}\.){3}\d{1,3}$')
