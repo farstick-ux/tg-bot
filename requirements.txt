@@ -6,3 +6,4 @@ holehe>=1.7.0
 beautifulsoup4==4.12.2
 flask==2.3.3
 pydrive
+aiogram==3.17.0
