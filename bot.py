@@ -150,22 +150,7 @@ user_search_states = {}
 
 # ========== ФУНКЦИИ ПОИСКА ==========
 def run_email_search(email):
-    try:
-        result = subprocess.run(["holehe", email, "--no-color"], capture_output=True, text=True, timeout=60)
-        clean = re.sub(r'\x1b\[[0-9;]*m', '', result.stdout)
-        found_sites = []
-        for line in clean.split("\n"):
-            if "[+]" in line:
-                site = line.replace("[+]", "").strip()
-                site = re.sub(r'https?://', '', site)
-                site = site.split()[0] if site.split() else site
-                if len(site) > 3 and site.lower() not in ['email', 'mail']:
-                    found_sites.append(f"✅ {site[:100]}")
-        if found_sites:
-            return f"📧 *Email:* {email}\n\n🔎 *НАЙДЕНО:*\n" + "\n".join(found_sites[:100]) + f"\n\nДополнительно: (google dorking)\nhttps://www.google.com/search?q=intext:{email}" + f"\n\nYandex:\nhttps://yandex.com/search/touch/?text={email}"
-        return f"📧 *Email:* {email}\n\n❌ *Ничего не найдено*\n\nДополнительно: (google dorking)\nhttps://www.google.com/search?q=intext:{email}" + f"\n\nYandex:\nhttps://yandex.com/search/touch/?text={email}"
-    except Exception as e:
-        return f"❌ *Ошибка:* {e}"
+    return f"📧 *Email:* {email}\nGoogle dorking:\nhttps://www.google.com/search?q=intext:{email}" + f"\n\nYandex:\nhttps://yandex.com/search/touch/?text={email}"
 
 def run_nickname_search(username):
     import requests
